@@ -1,9 +1,12 @@
 # API และสิทธิ์
 
-Base path `/api/v1`. ทุก endpoint ต้องมี session cookie ยกเว้น login. GET ไม่แก้ข้อมูล domain; POST/PATCH ต้อง `Origin` ตรง `APP_ORIGIN` และ `x-csrf-token` จาก GET `/me`. Login ใช้ Origin และ rate limit. ส่ง JSON ด้วย Content-Type application/json ยกเว้น upload multipart/form-data
+Base path `/api/v1`. ทุก endpoint ต้องมี session cookie ยกเว้น login และ GET public-calendar. GET ไม่แก้ข้อมูล domain; POST/PATCH ต้อง `Origin` ตรง `APP_ORIGIN` และ `x-csrf-token` จาก GET `/me`. Login ใช้ Origin และ rate limit. ส่ง JSON ด้วย Content-Type application/json ยกเว้น upload multipart/form-data
 
 | Method / path | สิทธิ์ | Input / ผลลัพธ์หลัก |
 |---|---|---|
+| GET public-calendar | สาธารณะ อ่านอย่างเดียว | year (id), month (YYYY-MM), department, group; ปี/ตัวกรอง/วันเวลา/สถานที่/จำนวน ไม่มีข้อมูลรายบุคคล |
+| POST personnel-seed | employee.write (ADMIN) | JSON version:1,source,snapshotDate,people; จำกัด 2 MB/2,000 คน transaction ทั้งชุด คืนจำนวน created/unchanged |
+| POST members/bulk | roster.write (ADMIN) | employeeIds,planId,snapshotDate,rounds,serviceIds; transaction ทั้งชุด ไม่สร้างทะเบียนซ้ำ |
 | POST auth/login | สาธารณะ + Origin | username,password; ตั้ง HttpOnly cookie |
 | GET me / POST auth/logout | เข้าสู่ระบบ | actor, roles, permissions, departments, csrf / revoke session |
 | GET masters | master.read | years, plans, departments, positions, levels, employmentTypes, groups, services |
@@ -33,6 +36,6 @@ Base path `/api/v1`. ทุก endpoint ต้องมี session cookie ยก
 
 Filter นัด/รายงาน/export ใช้ `year` เป็น **id ของ fiscal_years** ไม่ใช่เลข 2570 และรองรับ department, group, member, status, from, to, service, q (ชื่อ/รหัส), page. ค่าที่ไม่ระบุไม่นำมากรอง
 
-ADMIN มีสิทธิ์จัดการทั้งหมดและทุกหน่วยงาน, STAFF อ่านบุคลากรและจัดนัด/attendance/รายงานเฉพาะหน่วยงานที่กำหนด, VIEWER อ่าน master และรายงานสรุปเฉพาะหน่วยงาน ไม่มีสิทธิ์อ่านรายชื่อบุคคล/นัด/export. Scope ว่างของ STAFF/VIEWER หมายถึงไม่เห็นข้อมูล ไม่ใช่ทุกหน่วยงาน
+ADMIN มีสิทธิ์จัดการทั้งหมดและทุกหน่วยงาน, STAFF และ VIEWER ดูหน้าเว็บปฏิทิน อ่าน master และรายงานสรุปเฉพาะหน่วยงาน ไม่มีสิทธิ์อ่านรายชื่อบุคคล/นัด/export. Scope ว่างของ STAFF/VIEWER หมายถึงไม่เห็นข้อมูลใน API รายงาน; ปฏิทินสาธารณะแสดงภาพรวมทั้งโรงพยาบาลสำหรับทุกคน
 
 Error response: `{code,message,requestId,fieldErrors?}`. HTTP 401 เข้าสู่ระบบใหม่, 403 ไม่มีสิทธิ์/CSRF, 409 conflict/version, 413 ขนาดเกิน, 415 MIME, 422 validation, 429 login limit, 503 ปัญหาฐาน/การทำงานพร้อมกัน. ไม่คืน SQL, stack, credential หรือ raw provider response

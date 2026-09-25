@@ -5,7 +5,7 @@ import { ensure } from '../src/domain/validation';
 
 const grants:Record<string,string[]>={
  ADMIN:['master.read','master.write','year.write','employee.read','employee.write','roster.write','plan.write','appointment.read','appointment.write','attendance.write','import.execute','export.execute','report.read','notification.read','notification.manage','audit.read','user.manage'],
- STAFF:['master.read','employee.read','appointment.read','appointment.write','attendance.write','report.read'],
+ STAFF:['master.read','report.read'],
  VIEWER:['master.read','report.read'],
 };
 async function main() {

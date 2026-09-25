@@ -17,6 +17,19 @@
 
 ## วิธีเปิดใช้
 
+หน้า CMS เรียกคู่ **Client_ID + Secret** ว่า Token/API Key: นำ Client_ID ใส่ `MOPH_CLIENT_KEY` และ Secret ใส่ `MOPH_SECRET_KEY` ใน `.env` ของเครื่องที่รัน app/worker. โค้ดส่งสองค่านี้เป็น headers `client-key` และ `secret-key` ตามเอกสาร ไม่ต้องสร้าง token สุ่มในเครื่องเอง
+
+```dotenv
+MOPH_LIVE_ENABLED=true
+MOPH_CLIENT_KEY=วางค่า_Client_ID_จาก_CMS
+MOPH_SECRET_KEY=วางค่า_Secret_จาก_CMS
+MOPH_BEARER_TOKEN=
+```
+
+Free Form Postman ที่แนบใช้ `noauth` จึงเว้น Bearer ว่างได้. เมื่อเปลี่ยนค่าให้ restart app และ worker; ในหน้า Admin → แจ้งเตือน เปิดใช้งาน เลือก LIVE และยืนยันส่งจริง จากนั้นรัน `npm run worker`. ผู้รับต้องมี CID ที่ตรวจรับและเปิดรับแจ้งเตือนพร้อมนัดที่ถึงกำหนดส่ง ไม่ส่งทันทีเพียงบันทึก credential
+
+หากสร้าง Token ใหม่ใน CMS ให้คัดลอกค่าคู่ใหม่แทนคู่เก่าแล้ว restart ทั้งสอง process ไม่ต้องแก้ source code หรือใส่ค่าใน Git
+
 1. ขอ client-key/secret-key และตั้งค่าหน่วยบริการผ่านระบบ CMS ตามคู่มือของโรงพยาบาล
 2. ให้ผู้รับเชื่อม LINE OA หมอพร้อมตามกระบวนการของหน่วยงาน ตรวจสอบ CID กับเจ้าของข้อมูลก่อนบันทึกหน้า บุคลากร → ผู้รับแจ้งเตือน ใช้ CID นี้เฉพาะการแจ้งนัด เก็บ AES-256-GCM และ HMAC ฝั่ง server
 3. เริ่มจากเปิด worker ใน DRY_RUN ดู job log และใช้ preview ตรวจข้อความ ไม่มีคำขอ HTTP ออกไปในโหมดนี้

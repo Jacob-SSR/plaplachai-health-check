@@ -4,18 +4,21 @@ import { authenticate,login,logout,requirePermission,scopeSql } from '@/src/serv
 import { rows,execute,transaction } from '@/src/server/db';
 import { jsonBody,boundedBody,errorResponse,download } from '@/src/server/http';
 import { ensure,id,text,statuses } from '@/src/domain/validation';
-import { masters,saveMaster,employees,createEmployee,updateEmployee,setRecipient,createYear,closeYear,createPlan,updatePlan,enroll,members,saveUser } from '@/src/server/registry';
+import { masters,saveMaster,employees,createEmployee,updateEmployee,setRecipient,createYear,closeYear,createPlan,updatePlan,enroll,enrollMany,members,saveUser } from '@/src/server/registry';
 import { appointmentInput,createAppointment,updateAppointment,changeStatus,listAppointments } from '@/src/server/appointments';
 import { reports } from '@/src/server/reports';
 import { template,validateImport,confirmImport,exportAppointments,MAX_UPLOAD } from '@/src/server/excel';
 import { notificationSettings,retryNotification,reminderText } from '@/src/server/notifications';
 import { audit } from '@/src/server/audit';
+import { publicCalendar } from '@/src/server/public-calendar';
+import { importPersonnelSeed } from '@/src/server/personnel-seed';
 
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 async function handle(req:NextRequest,{params}:{params:Promise<{path:string[]}>}) {
   try {
     const path=(await params).path,route=path.join('/'),method=req.method,url=req.nextUrl.searchParams;
+    if(route==='public-calendar'&&method==='GET')return NextResponse.json(await publicCalendar(url),{headers:{'Cache-Control':'no-store'}});
     if(route==='auth/login'&&method==='POST') {const data=z.object({username:text(100),password:z.string().min(1).max(200)}).parse(await jsonBody(req));return await login(req,data.username,data.password);}
     const actor=await authenticate(req),allow=(permission:string)=>requirePermission(actor,permission);
     let result:unknown;
@@ -25,6 +28,11 @@ async function handle(req:NextRequest,{params}:{params:Promise<{path:string[]}>}
     else if(path[0]==='masters'&&['POST','PATCH'].includes(method)){allow('master.write');result=await saveMaster(path[1],method==='PATCH'?id.parse(path[2]):undefined,await jsonBody(req),actor);}
     else if(route==='employees'&&method==='GET'){allow('employee.read');result=await employees(actor);}
     else if(route==='employees'&&method==='POST'){allow('employee.write');result=await createEmployee(await jsonBody(req),actor);}
+    else if(route==='personnel-seed'&&method==='POST'){
+      allow('employee.write');ensure(req.headers.get('content-type')?.includes('application/json'),'ต้องส่ง application/json',415);
+      let body:unknown;try{body=JSON.parse((await boundedBody(req,2*1024*1024)).toString('utf8'));}catch(error){if(error&&typeof error==='object'&&'status' in error)throw error;ensure(false,'ไฟล์ข้อมูลไม่ใช่ JSON ที่ถูกต้อง');}
+      result=await importPersonnelSeed(body,actor.id);
+    }
     else if(path[0]==='employees'&&path.length===2&&method==='PATCH'){allow('employee.write');result=await updateEmployee(id.parse(path[1]),await jsonBody(req),actor);}
     else if(path[0]==='employees'&&path[2]==='recipient'&&method==='PATCH'){allow('notification.manage');result=await setRecipient(id.parse(path[1]),await jsonBody(req),actor);}
     else if(route==='years'&&method==='POST'){allow('year.write');result=await createYear(await jsonBody(req),actor);}
@@ -33,6 +41,7 @@ async function handle(req:NextRequest,{params}:{params:Promise<{path:string[]}>}
     else if(path[0]==='plans'&&path.length===2&&method==='PATCH'){allow('plan.write');result=await updatePlan(id.parse(path[1]),await jsonBody(req),actor);}
     else if(route==='members'&&method==='GET'){allow('employee.read');result=await members(id.parse(url.get('year')),actor);}
     else if(route==='members'&&method==='POST'){allow('roster.write');result=await enroll(await jsonBody(req),actor);}
+    else if(route==='members/bulk'&&method==='POST'){allow('roster.write');result=await enrollMany(await jsonBody(req),actor);}
     else if(route==='appointments'&&method==='GET'){allow('appointment.read');result=await listAppointments(url,actor);}
     else if(route==='calendar'&&method==='GET'){allow('appointment.read');result=await listAppointments(url,actor,true);}
     else if(route==='appointments'&&method==='POST'){allow('appointment.write');const input=appointmentInput.parse(await jsonBody(req));result=await transaction(db=>createAppointment(input,actor,db));}

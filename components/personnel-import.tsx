@@ -1,0 +1,7 @@
+'use client';
+import { useState } from 'react';
+import { FormPanel,type Api } from './ui';
+export function PersonnelImport({api,onClose,reload}:{api:Api;onClose:()=>void;reload:()=>void}){
+  const [seed,setSeed]=useState<unknown>(),[count,setCount]=useState(0),[error,setError]=useState('');
+  return <FormPanel title="นำเข้าบุคลากร หน่วยงาน และตำแหน่งพร้อมกัน" onClose={onClose} onSubmit={async()=>{if(!seed)throw Error('เลือกไฟล์ personnel.seed.json ก่อน');await api('personnel-seed','POST',seed);reload();}}><p className="helper span-all">เลือกไฟล์ personnel.seed.json ที่เตรียมจาก Excel แล้ว ระบบเพิ่มกลุ่มงาน หน่วยงาน ตำแหน่ง ระดับ ประเภทการจ้าง และบุคลากรในครั้งเดียว นำเข้าไฟล์เดิมซ้ำได้โดยไม่เพิ่มคนซ้ำหรือทับประวัติย้ายงาน</p><label className="span-all">ไฟล์ข้อมูลบุคลากร<input type="file" accept=".json" required onChange={async e=>{setSeed(undefined);setCount(0);setError('');const file=e.target.files?.[0];if(!file)return;try{if(file.size>2*1024*1024)throw Error('ไฟล์ต้องไม่เกิน 2 MB');const data=JSON.parse(await file.text());if(data.version!==1||!Array.isArray(data.people))throw Error('ไฟล์ไม่ใช่ personnel.seed.json');setSeed(data);setCount(data.people.length);}catch(e){setError(e instanceof Error?e.message:'อ่านไฟล์ไม่ได้');}}}/></label>{count>0&&<p className="notice span-all">พร้อมนำเข้า {count} คน กดบันทึกข้อมูลเพื่อเพิ่มทั้งชุด</p>}{error&&<p className="error span-all" role="alert">{error}</p>}</FormPanel>;
+}

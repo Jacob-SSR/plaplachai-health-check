@@ -1,4 +1,7 @@
 node_modules
+private
+*.seed.json
+INFOMATION_PERSON*.xlsx
 .next
 .git
 .env*

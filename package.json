@@ -15,7 +15,8 @@
     "db:bootstrap": "tsx scripts/bootstrap.ts",
     "worker": "tsx workers/notifications.ts",
     "worker:once": "tsx workers/notifications.ts --once",
-    "db:reset-password": "tsx scripts/reset-password.ts"
+    "db:reset-password": "tsx scripts/reset-password.ts",
+    "db:seed-personnel": "tsx scripts/seed-personnel.ts"
   },
   "dependencies": {
     "@fontsource/noto-sans-thai": "^5.3.0",

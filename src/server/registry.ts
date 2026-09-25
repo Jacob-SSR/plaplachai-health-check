@@ -49,9 +49,9 @@ const employeeSchema=z.object({employeeCode:code,prefix:z.string().trim().max(30
 export async function employees(actor:Actor) {
   const scope=scopeSql(actor,'a.department_id');
   return rows(`SELECT e.id,e.employee_code,e.prefix,e.first_name,e.last_name,e.active,e.version,e.notification_enabled,
-   (e.cid_ciphertext IS NOT NULL) has_cid,a.department_id,a.position_id,a.level_id,a.employment_type_id,a.valid_from,d.name department_name,p.name position_name
+   (e.cid_ciphertext IS NOT NULL) has_cid,a.department_id,a.position_id,a.level_id,a.employment_type_id,a.valid_from,d.name department_name,p.name position_name,parent.name group_name
    FROM employees e JOIN employee_assignments a ON a.employee_id=e.id AND a.valid_to IS NULL
-   JOIN departments d ON d.id=a.department_id JOIN positions p ON p.id=a.position_id WHERE ${scope.sql} ORDER BY e.first_name,e.last_name`,scope.params);
+   JOIN departments d ON d.id=a.department_id LEFT JOIN departments parent ON parent.id=d.parent_id JOIN positions p ON p.id=a.position_id WHERE ${scope.sql} ORDER BY e.first_name,e.last_name`,scope.params);
 }
 export async function createEmployee(body:unknown,actor:Actor) {
   const input=employeeSchema.parse(body);
@@ -112,9 +112,9 @@ export async function createPlan(body:unknown,actor:Actor) {
     await audit(db,actor.id,'CREATE','plans',r.insertId,{yearId:input.yearId,code:input.code});return {id:r.insertId};
   });
 }
-export async function enroll(body:unknown,actor:Actor) {
+export async function enroll(body:unknown,actor:Actor,connection?:DB) {
   const input=z.object({employeeId:id,planId:id,snapshotDate:date,serviceIds:z.array(id).min(1),rounds:id.max(10)}).parse(body);
-  return transaction(async db=>{
+  const run=async(db:DB)=>{
     const [employee]=await rows<RecordRow>('SELECT * FROM employees WHERE id=? AND active=1 FOR UPDATE',[input.employeeId],db);ensure(employee,'ไม่พบบุคลากรที่เปิดใช้งาน');
     const [plan]=await rows<RecordRow>(`SELECT p.*,y.status year_status,y.start_date year_start,y.end_date year_end FROM health_check_plans p JOIN fiscal_years y ON y.id=p.fiscal_year_id WHERE p.id=? FOR UPDATE`,[input.planId],db);ensure(plan?.status==='OPEN'&&plan.year_status==='OPEN','แผนหรือปีปิดอยู่');
     ensure(inRange(input.snapshotDate,String(plan.year_start),String(plan.year_end)),'วันที่อ้างอิงต้องอยู่ในปีงบประมาณ');
@@ -130,6 +130,15 @@ export async function enroll(body:unknown,actor:Actor) {
       for(let round=1;round<=input.rounds;round++) await execute('INSERT IGNORE INTO member_service_requirements(member_id,plan_id,fiscal_year_id,service_id,round_no) VALUES(?,?,?,?,?)',[member.id,input.planId,plan.fiscal_year_id,serviceId,round],db);
     }
     await audit(db,actor.id,'ENROLL','fiscal_year_members',member.id,{planId:input.planId,serviceIds:input.serviceIds,rounds:input.rounds});return member;
+  };
+  return connection?run(connection):transaction(run);
+}
+export async function enrollMany(body:unknown,actor:Actor){
+  const input=z.object({employeeIds:z.array(id).min(1).max(2000),planId:id,snapshotDate:date,serviceIds:z.array(id).min(1),rounds:id.max(10)}).parse(body);
+  return transaction(async db=>{
+    const employeeIds=[...new Set(input.employeeIds)].sort((a,b)=>a-b);
+    for(const employeeId of employeeIds)await enroll({...input,employeeId},actor,db);
+    return {enrolled:employeeIds.length};
   });
 }
 export async function updatePlan(planId:number,body:unknown,actor:Actor) {
