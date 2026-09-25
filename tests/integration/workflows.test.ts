@@ -79,7 +79,7 @@ test('transactional scheduling, scoped reads, Excel roundtrip and worker safegua
 test('manual notification verifies gates, sends once, and preserves uncertain outcomes',async()=>{
  const f=await fixture(),actor={...f.actor,permissions:['notification.manage']},employeeId=f.people[0].employeeId;
  const request={employeeId,requestId:randomUUID()};let calls=0;
- const provider={send:async(cid:string,message:string)=>{calls++;assert.equal(cid,'1234567890121');assert.ok(message.includes('ข้อความทดสอบ'));return {outcome:'ACCEPTED' as const};}};
+ const provider={send:async(cid:string,message:string)=>{calls++;assert.equal(cid,'1234567890121');assert.ok(message.includes('ข้อความทดสอบ'));return {outcome:'ACCEPTED' as const,httpStatus:200,providerCode:'200'};}};
  const keys=['MOPH_LIVE_ENABLED','MOPH_CLIENT_KEY','MOPH_SECRET_KEY'],oldEnv=keys.map(k=>process.env[k]);
  const [settings]=await rows('SELECT enabled,mode FROM notification_settings WHERE id=1');
  try{
@@ -95,7 +95,7 @@ test('manual notification verifies gates, sends once, and preserves uncertain ou
   await execute('UPDATE employees SET notification_enabled=1,cid_ciphertext=?,cid_verified_at=UTC_TIMESTAMP() WHERE id=?',[encrypt('1234567890121'),employeeId]);
   const results=await Promise.all([sendTestNotification(request,actor,provider),sendTestNotification(request,actor,provider)]);
   assert.equal(calls,1);assert.ok(results.some(r=>r.status==='ACCEPTED'));
-  assert.equal((await sendTestNotification(request,actor,provider)).status,'ACCEPTED');assert.equal(calls,1);
+  const replay=await sendTestNotification(request,actor,provider);assert.equal(replay.status,'ACCEPTED');assert.equal(replay.http_status,200);assert.equal(replay.provider_code,'200');assert.equal(calls,1);
   await assert.rejects(sendTestNotification({...request,requestId:randomUUID()},actor,provider),/1 นาที/);
   await execute('UPDATE notification_test_sends SET created_at=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 2 MINUTE) WHERE id=?',[request.requestId]);
   const uncertain={...request,requestId:randomUUID()};

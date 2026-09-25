@@ -15,6 +15,18 @@
 
 ข้อกำกวมที่ยังต้องตรวจรับกับ MOPH: ตารางใน PDF เขียน messages เป็น array string แต่ตัวอย่าง JSON เป็น object; Free Form Postman ใช้ noauth ส่วน Template collection มี Bearer. จึงส่ง object ตามตัวอย่าง Free Form และไม่ใส่ Bearer เว้นแต่ตั้ง MOPH_BEARER_TOKEN หลัง provider ยืนยัน ไม่มีเอกสาร rate limit, idempotency key, delivery receipt หรือ status lookup ที่ยืนยันได้
 
+## อ่านสาเหตุเมื่อส่งไม่ผ่าน
+
+หน้าแจ้งเตือนแสดง HTTP status, MOPH message_code และรหัสคำขอ. HTTP 200 เพียงอย่างเดียวไม่ได้แปลว่าส่งผ่าน ต้องเป็น message_code 200 ด้วย
+
+- 401 + client-key or secret-key incorrect: ตรวจ Client_ID/Secret คู่ที่เปิดใช้ใน CMS แล้ว restart app/worker
+- 401 + No Cid: MOPH แจ้งว่าไม่มี CID ที่ต้องการส่ง ให้ตรวจเลขที่บันทึกและการลงทะเบียนบัญชี LINE หมอพร้อม ไม่ใช่หลักฐานว่า Key ผิด
+- 401 + Hospital Logo is empty: ตั้งรูปโรงพยาบาลใน CMS ตามคู่มือ Template
+- 404 + Error template: คู่มือใช้ข้อความเดียวกับหลายกรณี (template, LINE user, CID) จึงต้องให้ MOPH ช่วยตรวจ ไม่สรุปว่าเป็น template อย่างเดียว
+- ข้อความอื่น: แสดงคำอธิบายทั่วไปพร้อมรหัส ไม่สะท้อน raw response ซึ่งอาจมีเลขบัตร/Secret. HTTP 5xx ยังคงเป็น UNKNOWN แม้ body มีรหัสปฏิเสธ ห้ามส่งซ้ำอัตโนมัติ
+
+ผลส่งจากรุ่นเก่าที่เก็บเพียงคำอธิบายรวมไม่สามารถกู้ข้อความต้นฉบับย้อนหลังได้ หลังอัปเดตให้เริ่มการทดสอบใหม่เมื่อพร้อมส่งจริง. การกดตรวจผลคำขอเดิมจะคืนผลเดิมโดยไม่ส่งซ้ำ
+
 ## วิธีเปิดใช้
 
 หน้า CMS เรียกคู่ **Client_ID + Secret** ว่า Token/API Key: นำ Client_ID ใส่ `MOPH_CLIENT_KEY` และ Secret ใส่ `MOPH_SECRET_KEY` ใน `.env` ของเครื่องที่รัน app/worker. โค้ดส่งสองค่านี้เป็น headers `client-key` และ `secret-key` ตามเอกสาร ไม่ต้องสร้าง token สุ่มในเครื่องเอง

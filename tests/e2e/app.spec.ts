@@ -66,9 +66,10 @@ test('admin browser journey, permissions and responsive layout',async({page,requ
  await page.getByRole('button',{name:'ส่งข้อความทดสอบ',exact:true}).click();
  await expect(page.getByRole('region',{name:'ทดสอบแจ้งเตือน',exact:true}).getByRole('alert')).toContainText('MOPH_LIVE_ENABLED');
  // Verify success feedback with an explicit browser stub, never contact MOPH in E2E.
- await page.route('**/api/v1/notifications/test',async route=>{const input=route.request().postDataJSON();expect(input.employeeId).toBe(f.people[0].employeeId);expect(input.requestId).toMatch(/^[a-f0-9-]{36}$/);await route.fulfill({json:{id:input.requestId,status:'ACCEPTED',safe_error:null}});});
+ await page.route('**/api/v1/notifications/test',async route=>{const input=route.request().postDataJSON();expect(input.employeeId).toBe(f.people[0].employeeId);expect(input.requestId).toMatch(/^[a-f0-9-]{36}$/);await route.fulfill({json:{id:input.requestId,status:'ACCEPTED',safe_error:null,http_status:200,provider_code:'200'}});});
  await page.getByRole('button',{name:'ตรวจผลคำขอเดิม',exact:true}).click();
  await expect(page.getByRole('status')).toContainText('MOPH รับคำขอแล้ว');
+ await expect(page.getByText('HTTP 200 · MOPH 200',{exact:false})).toBeVisible();
  await page.screenshot({path:'test-results/test-notification.png',fullPage:true});
  await page.unroute('**/api/v1/notifications/test');
  await page.getByRole('button',{name:'ข้อมูลตั้งต้น',exact:true}).click();await expect(page.getByRole('button',{name:'เพิ่มปีงบประมาณ',exact:true})).toBeVisible();

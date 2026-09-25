@@ -1,5 +1,13 @@
 # ผลตรวจสอบก่อนส่งมอบ
 
+## แยกสาเหตุ MOPH ปฏิเสธคำขอ
+
+- Unit 7 tests, integration 12 tests, lint, production build และ E2E 5 journeys ผ่าน
+- แยกข้อความ 401 ตาม exact allowlist: Key ไม่ถูกต้อง, No Cid, Hospital Logo is empty; 404 Error template ยังระบุว่ากำกวมตามคู่มือ
+- ตรวจว่า response ที่มี CID/Secret หรือข้อความไม่รู้จักไม่ถูกคืนให้ client; HTTP 5xx ไม่ถูกจัดเป็นการปฏิเสธที่ retry ได้แม้ body จะมี 401
+- ใช้ fake transport ตรวจ headers ตาม Free Form, เว้น Bearer เมื่อไม่ได้ตั้งค่า, trim ช่องว่างขอบ Key และรองรับ HTTP401/403 ที่ตอบ HTML
+- ส่งและ replay คืน HTTP status/provider code เดิม พร้อมแสดงรหัสคำขอบน UI โดยไม่ส่งซ้ำ ไม่มีการเปลี่ยน schema
+
 ## บริการประจำและปุ่มส่งทดสอบ
 
 - Migration 003/004 ผ่านบน MySQL ทดสอบ แยกพอร์ต 3308 จากฐานของผู้ใช้

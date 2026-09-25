@@ -22,6 +22,31 @@ test('provider acceptance never implies delivery; uncertain response is not retr
  assert.equal(classifyResponse(500,{message_code:200}).outcome,'UNKNOWN');
  assert.equal(classifyResponse(200,{}).outcome,'UNKNOWN');
 });
+
+test('MOPH rejection messages identify documented causes without exposing response data',()=>{
+ const cases=[['client-key or secret-key incorrect','Client_ID หรือ Secret ไม่ถูกต้อง'],['No Cid','ไม่พบ CID'],['Hospital Logo is empty','ยังไม่มีรูปโรงพยาบาล']];
+ for(const [message,expected] of cases){const result=classifyResponse(200,{message_code:401,message});assert.equal(result.outcome,'REJECTED');assert.ok(result.safeError?.includes(expected));assert.equal(result.providerCode,'401');}
+ const ambiguous=classifyResponse(200,{message_code:404,message:'Error template'});assert.ok(ambiguous.safeError?.includes('หลายสาเหตุ'));
+ for(const message of ['secret: SENSITIVE CID 1234567890121','No Cid 1234567890121',{cid:'1234567890121'}]){
+  const result=JSON.stringify(classifyResponse(200,{message_code:401,message}));assert.ok(!result.includes('SENSITIVE'));assert.ok(!result.includes('1234567890121'));
+ }
+ assert.equal(classifyResponse(503,{message_code:401,message:'client-key or secret-key incorrect'}).outcome,'UNKNOWN');
+ assert.equal(classifyResponse(401,null).outcome,'REJECTED');
+});
+
+test('Free Form transport uses CMS headers and preserves safe error details',async()=>{
+ const keys=['MOPH_LIVE_ENABLED','MOPH_CLIENT_KEY','MOPH_SECRET_KEY','MOPH_BEARER_TOKEN'],saved=keys.map(k=>process.env[k]);
+ try{
+  process.env.MOPH_LIVE_ENABLED='true';process.env.MOPH_CLIENT_KEY=' client-test ';process.env.MOPH_SECRET_KEY=' secret-test ';delete process.env.MOPH_BEARER_TOKEN;
+  const provider=new MophAlertProvider(async(url,options)=>{
+   assert.equal(url,'https://morpromt2c.moph.go.th/alert/v3.1/messages');
+   const headers=options!.headers as Record<string,string>;assert.equal(headers['client-key'],'client-test');assert.equal(headers['secret-key'],'secret-test');assert.equal(headers.Authorization,undefined);
+   const payload=JSON.parse(String(options!.body));assert.deepEqual(payload.cid,['synthetic']);
+   return new Response(JSON.stringify({message_code:401,message:'No Cid'}),{status:200});
+  });assert.ok((await provider.send('synthetic','test')).safeError?.includes('ไม่พบ CID'));
+  const html=new MophAlertProvider(async()=>new Response('<p>secret-test</p>',{status:403}));const result=await html.send('synthetic','test');assert.equal(result.outcome,'REJECTED');assert.ok(!JSON.stringify(result).includes('secret-test'));
+ }finally{keys.forEach((key,i)=>{if(saved[i]===undefined)delete process.env[key];else process.env[key]=saved[i];});}
+});
 test('provider is off by default and handles timeout without leaking response',async()=>{
  const env={enabled:process.env.MOPH_LIVE_ENABLED,client:process.env.MOPH_CLIENT_KEY,secret:process.env.MOPH_SECRET_KEY};let calls=0;
  try{process.env.MOPH_LIVE_ENABLED='false';const p=new MophAlertProvider(async()=>{calls++;throw Error('SECRET CID');});
