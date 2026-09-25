@@ -1,0 +1,23 @@
+import { test,expect } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
+import { fixture,testGuard } from '../fixture';
+import { saveUser } from '../../src/server/registry';
+import { closePool } from '../../src/server/db';
+testGuard();test.afterAll(closePool);
+test('server enforces viewer permissions, scopes, Origin and CSRF',async({request})=>{
+ const f=await fixture(),password='Synthetic-password-2570!',username=`viewer_${randomUUID().slice(0,8)}`;
+ await saveUser({username,password,displayName:'บัญชีทดสอบรายงาน',role:'VIEWER',departmentIds:[f.departmentId]},f.actor);
+ const origin=process.env.APP_ORIGIN!;
+ expect((await request.post('/api/v1/auth/login',{data:{username,password},headers:{Origin:'https://foreign.invalid'}})).status()).toBe(403);
+ expect((await request.post('/api/v1/auth/login',{data:{username,password},headers:{Origin:origin}})).status()).toBe(200);
+ const me=await(await request.get('/api/v1/me')).json();expect(me.roles).toEqual(['VIEWER']);
+ expect((await request.get('/api/v1/employees')).status()).toBe(403);
+ expect((await request.get(`/api/v1/appointments?year=${f.yearId}`)).status()).toBe(403);
+ expect((await request.get(`/api/v1/exports/appointments?year=${f.yearId}`)).status()).toBe(403);
+ expect((await request.get('/api/v1/notification-settings')).status()).toBe(403);
+ const report=await(await request.get(`/api/v1/reports?year=${f.yearId}`)).json();expect(report.summary.eligible).toBe(4);expect(JSON.stringify(report)).not.toContain(f.people[0].employeeCode);
+ expect((await request.post('/api/v1/years',{data:{year:2575},headers:{Origin:origin,'x-csrf-token':me.csrf}})).status()).toBe(403);
+ expect((await request.post('/api/v1/auth/logout',{data:{},headers:{Origin:origin,'x-csrf-token':'a'.repeat(64)}})).status()).toBe(403);
+ expect((await request.post('/api/v1/auth/logout',{data:{},headers:{Origin:origin,'x-csrf-token':me.csrf}})).status()).toBe(200);
+ expect((await request.get('/api/v1/me')).status()).toBe(401);
+});
