@@ -13,7 +13,7 @@ export function classifyResponse(httpStatus:number,body:unknown):Delivery {
   if(code==='401'){
     if(message==='client-key or secret-key incorrect')return {outcome:'REJECTED',...info,safeError:'MOPH แจ้งว่า Client_ID หรือ Secret ไม่ถูกต้อง ให้คัดลอกคู่ที่เปิดใช้งานจาก CMS ใส่ MOPH_CLIENT_KEY/MOPH_SECRET_KEY แล้ว restart เว็บและ worker'};
     if(message==='no cid')return {outcome:'REJECTED',...info,safeError:'MOPH แจ้งว่าไม่พบ CID ที่ต้องการส่ง ให้ตรวจเลขบัตรประชาชนที่บันทึกกับบัญชีผู้รับใน LINE หมอพร้อม ข้อความนี้ไม่ได้ระบุว่า API Key ผิด'};
-    if(message==='hospital logo is empty')return {outcome:'REJECTED',...info,safeError:'MOPH แจ้งว่ายังไม่มีรูปโรงพยาบาล ให้ตั้งโลโก้ใน CMS MOPH Alert แล้วทดสอบใหม่'};
+    if(message==='hospital logo is empty')return {outcome:'REJECTED',...info,safeError:'MOPH แจ้งว่ายังไม่มีรูปโรงพยาบาล หาก CMS ไม่มีเมนูตั้งรูป ให้ติดต่อผู้ดูแล MOPH เพื่อตั้งโลโก้หน่วยบริการ'};
     return {outcome:'REJECTED',...info,safeError:'MOPH ตอบรหัส 401 แต่ไม่ตรงข้อความที่ระบุในคู่มือ จึงยังแยกไม่ได้ว่าเป็น Key ข้อมูลผู้รับ หรือการตั้งค่าหน่วยบริการ ให้แจ้งรหัสคำขอนี้แก่ผู้ดูแล'};
   }
   if(code==='404')return {outcome:'REJECTED',...info,safeError:message==='error template'?'MOPH ตอบ Error template (404) ซึ่งคู่มือใช้กับหลายสาเหตุ ทั้ง template, LINE user และ CID ที่ลงทะเบียน ต้องให้ MOPH ตรวจผู้รับและสิทธิ์บริการ จึงยังฟันธงไม่ได้':'MOPH ตอบรหัส 404 กรุณาให้ผู้ดูแล MOPH ตรวจการลงทะเบียนผู้รับและสิทธิ์บริการโดยใช้รหัสผลตอบกลับ'};
