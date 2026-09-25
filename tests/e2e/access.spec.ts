@@ -37,7 +37,7 @@ for(const role of ['STAFF','VIEWER'] as const)test(`${role} lands on calendar an
  await page.goto('/admin');await expect(page).toHaveURL(process.env.APP_ORIGIN!+'/');
  const statuses=await page.evaluate(async()=>{
   const me=await(await fetch('/api/v1/me')).json();const out=[];
-  for(const path of ['personnel-seed','members/bulk','appointments'])out.push((await fetch(`/api/v1/${path}`,{method:'POST',headers:{'Content-Type':'application/json','x-csrf-token':me.csrf},body:'{}'})).status);
+  for(const path of ['personnel-seed','members/bulk','appointments','notifications/test'])out.push((await fetch(`/api/v1/${path}`,{method:'POST',headers:{'Content-Type':'application/json','x-csrf-token':me.csrf},body:'{}'})).status);
   out.push((await fetch('/api/v1/employees')).status);return out;
- });expect(statuses).toEqual([403,403,403,403]);
+ });expect(statuses).toEqual([403,403,403,403,403]);
 });

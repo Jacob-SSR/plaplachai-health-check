@@ -24,7 +24,7 @@ Runtime database account ควรมี SELECT/INSERT/UPDATE/DELETE เท่�
 
 DATA_ENCRYPTION_KEY เป็น AES-256-GCM key 32 bytes; CID_HMAC_KEY เป็น keyed hash เพื่อเทียบซ้ำ. เปลี่ยนค่า key ตรง ๆ หลังมีข้อมูลแล้วจะทำให้ถอด CID เดิมไม่ได้/เทียบซ้ำไม่ได้ รุ่นนี้ไม่มี key rotation CLI ให้ดำเนินแผน decrypt/re-encrypt และ re-HMAC ที่ตรวจรับก่อนหมุนกุญแจ. ขาด key จะบล็อกส่ง ไม่ log CID หรือกุญแจ
 
-MOPH ส่งจาก worker เท่านั้น สถานะ ACCEPTED ไม่ใช่ delivery receipt. UNKNOWN ต้องตรวจสอบกับ provider ก่อน retry เก็บเหตุผลและผู้สั่งทุกครั้ง. หากต้องหยุดการส่ง ให้ปิด enabled ที่หน้าแจ้งเตือน และ/หรือ MOPH_LIVE_ENABLED=false แล้ว restart worker กรณีคำขอเริ่มส่งไปแล้วอาจหยุดคำขอที่ provider ได้รับไม่ทัน
+MOPH แจ้งนัดอัตโนมัติส่งจาก worker ส่วนปุ่มส่งข้อความทดสอบส่งทันทีจาก app process สถานะ ACCEPTED ไม่ใช่ delivery receipt. UNKNOWN ต้องตรวจสอบกับ provider ก่อน retry เก็บเหตุผลและผู้สั่งทุกครั้ง. หากต้องหยุดการส่ง ให้ปิด enabled ที่หน้าแจ้งเตือน และ/หรือ MOPH_LIVE_ENABLED=false แล้ว restart worker กรณีคำขอเริ่มส่งไปแล้วอาจหยุดคำขอที่ provider ได้รับไม่ทัน
 
 ## Retention และ logs
 

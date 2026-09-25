@@ -1,5 +1,15 @@
 # ผลตรวจสอบก่อนส่งมอบ
 
+## บริการประจำและปุ่มส่งทดสอบ
+
+- Migration 003/004 ผ่านบน MySQL ทดสอบ แยกพอร์ต 3308 จากฐานของผู้ใช้
+- lint, typecheck และ production build ผ่าน
+- Integration 12 tests ผ่าน: บริการทั้ง 4 ใช้ service_id เดิมข้ามปี แต่ทะเบียน/สิทธิ์แยกปี; เพิ่มปีพร้อมชุดบริการและเรียกเตรียมซ้ำไม่สร้างซ้ำ; ส่งทดสอบตรวจ permission, server switch, credential, LIVE mode และผู้รับ
+- ทดสอบ request UUID เดิมพร้อมกันเรียก fake provider เพียงครั้งเดียว, จำกัดหนึ่งครั้งต่อนาทีต่อผู้รับ, replay ผลเดิม, timeout/คำขอค้างเป็น UNKNOWN ไม่ส่งซ้ำอัตโนมัติ
+- Integration files รันเรียงกันเพราะแชร์ฐานและ notification_settings; กรณี concurrent booking/test send ยังคงทดสอบพร้อมกันภายใน case
+- Playwright 5 journeys ผ่าน รวมเพิ่มปีผ่าน UI โดยไม่สร้างแผน, บริการครบ 4 และเลือกไว้ให้, ปุ่มส่งทดสอบปฏิเสธเมื่อปิด server switch และแสดงผล ACCEPTED ด้วย browser stub, STAFF/VIEWER ส่งทดสอบไม่ได้
+- **ไม่ได้ส่งข้อความจริงออกไป MOPH** ผลสำเร็จในภาพทดสอบมาจาก stub/fake provider เท่านั้น ต้องตรวจรับการส่งจริงกับบัญชี LINE หมอพร้อมของผู้รับที่หน่วยงาน
+
 ## อัปเดต 25 กันยายน 2569: ปฏิทินหน้าแรกและนำเข้าบุคลากร
 
 - lint, typecheck, production build และ unit tests 5 กรณีผ่าน

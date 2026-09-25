@@ -13,7 +13,7 @@ Base path `/api/v1`. ทุก endpoint ต้องมี session cookie ยก
 | POST masters/:kind / PATCH masters/:kind/:id | master.write | code,name,active,parentId/groupId,version เมื่อแก้ |
 | GET/POST employees / PATCH employees/:id | employee.read/write | อ่านตาม department scope; employeeCode,prefix,firstName,lastName,departmentId,positionId,levelId,employmentTypeId,validFrom; version,active เมื่อแก้ |
 | PATCH employees/:id/recipient | notification.manage | cid (optional เมื่อใช้เลขเดิม),enabled,verified; ไม่มี endpoint อ่าน CID เต็ม |
-| POST years / PATCH years/:id | year.write | {year:2570} / {status,version,reason} |
+| POST years / PATCH years/:id | year.write | {year:2570} สร้างชุดบริการประจำทั้ง 4 อัตโนมัติ / {status,version,reason} |
 | POST plans | plan.write | yearId,code,name,location,start,end,serviceIds |
 | PATCH plans/:id | plan.write | name,location,start,end,status,version,reason; ห้ามทำให้นัดเดิมอยู่นอกช่วง |
 | GET members?year=id / POST members | employee.read / roster.write | ทะเบียนรายปี / employeeId,planId,snapshotDate,rounds,serviceIds |
@@ -29,6 +29,7 @@ Base path `/api/v1`. ทุก endpoint ต้องมี session cookie ยก
 | GET exports/appointments | export.execute + scope | Excel นัด,รายงาน,ตัวกรอง |
 | GET/PATCH notification-settings | notification.manage | enabled,mode,version,days:number[],confirmLive |
 | GET notifications?year=id | notification.read + scope | 200 job ล่าสุด ไม่แสดงข้อความเต็มหรือ CID |
+| POST notifications/test | notification.manage (ADMIN), Origin/CSRF | employeeId,requestId (UUID); ส่งข้อความทดสอบคงที่ทันทีเมื่อผ่าน LIVE gates คืน id,status,safe_error ไม่มี CID; requestId เดิมไม่ส่งซ้ำ และจำกัดผู้รับหนึ่งครั้งต่อนาที |
 | POST notifications/preview | notification.manage | appointmentId; ข้อความ preview เท่านั้นไม่ส่ง |
 | POST notifications/:id/retry | notification.manage | reason,acknowledgeUnknown; สูงสุด 3 attempts |
 | GET audit | audit.read | 200 เหตุการณ์ล่าสุด |

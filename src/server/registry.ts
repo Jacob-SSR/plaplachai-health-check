@@ -6,6 +6,7 @@ import { ensure,id,text,code,date,fiscalRange,inRange,validCid } from '../domain
 import { audit } from './audit';
 import { encrypt,cidHash } from './crypto';
 import { type RecordRow } from './appointments';
+import { prepareAnnualServices } from './annual-services';
 
 export const masterTables:Record<string,string>={departments:'departments',positions:'positions',levels:'position_levels',employmentTypes:'employment_types',groups:'service_groups',services:'health_check_services'};
 const masterSchema=z.object({code,name:text(),active:z.boolean().default(true),parentId:id.nullable().optional(),groupId:id.optional(),version:id.optional()});
@@ -13,7 +14,7 @@ export async function masters(actor:Actor) {
   const result:Record<string,unknown>={};
   for(const [key,table] of Object.entries(masterTables)) result[key]=await rows(`SELECT * FROM ${table} ORDER BY name`);
   result.years=await rows('SELECT * FROM fiscal_years ORDER BY fiscal_year DESC');
-  result.plans=await rows(`SELECT p.*,(SELECT GROUP_CONCAT(service_id) FROM plan_services WHERE plan_id=p.id) service_ids FROM health_check_plans p ORDER BY p.id DESC`);
+  result.plans=await rows(`SELECT p.*,(SELECT GROUP_CONCAT(service_id) FROM plan_services WHERE plan_id=p.id) service_ids FROM health_check_plans p JOIN fiscal_years y ON y.id=p.fiscal_year_id ORDER BY (p.code=CONCAT('PPC_FY_',y.fiscal_year)) DESC,p.id DESC`);
   result.canManage=actor.permissions.includes('master.write');return result;
 }
 export async function saveMaster(kind:string,recordId:number|undefined,body:unknown,actor:Actor) {
@@ -92,12 +93,13 @@ export async function setRecipient(employeeId:number,body:unknown,actor:Actor) {
 }
 export async function createYear(body:unknown,actor:Actor) {
   const {year}=z.object({year:z.number().int().min(2500).max(2800)}).parse(body),range=fiscalRange(year);
-  return transaction(async db=>{const r=await execute('INSERT INTO fiscal_years(fiscal_year,start_date,end_date) VALUES(?,?,?)',[year,range.start,range.end],db);await audit(db,actor.id,'CREATE','fiscal_years',r.insertId,{year});return {id:r.insertId};});
+  return transaction(async db=>{const r=await execute('INSERT INTO fiscal_years(fiscal_year,start_date,end_date) VALUES(?,?,?)',[year,range.start,range.end],db);await prepareAnnualServices(r.insertId,db);await audit(db,actor.id,'CREATE','fiscal_years',r.insertId,{year});return {id:r.insertId};});
 }
 export async function closeYear(yearId:number,body:unknown,actor:Actor) {
   const input=z.object({status:z.enum(['OPEN','CLOSED']),version:id,reason:text(500)}).parse(body);
   return transaction(async db=>{
     const r=await execute('UPDATE fiscal_years SET status=?,version=version+1 WHERE id=? AND version=?',[input.status,yearId,input.version],db);ensure(r.affectedRows,'ข้อมูลเปลี่ยนแล้ว กรุณาโหลดใหม่',409);
+    if(input.status==='OPEN')await prepareAnnualServices(yearId,db);
     await audit(db,actor.id,'STATUS','fiscal_years',yearId,{status:input.status,reason:input.reason});return {ok:true};
   });
 }

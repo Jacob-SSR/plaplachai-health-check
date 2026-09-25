@@ -9,7 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
-    "test:integration": "node --import tsx --test tests/integration/*.test.ts",
+    "test:integration": "node --import tsx --test --test-concurrency=1 tests/integration/*.test.ts",
     "test:e2e": "playwright test",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:bootstrap": "tsx scripts/bootstrap.ts",

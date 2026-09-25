@@ -11,6 +11,7 @@ import { template,validateImport,confirmImport,exportAppointments,MAX_UPLOAD } f
 import { notificationSettings,retryNotification,reminderText } from '@/src/server/notifications';
 import { audit } from '@/src/server/audit';
 import { publicCalendar } from '@/src/server/public-calendar';
+import { sendTestNotification } from '@/src/server/notification-test';
 import { importPersonnelSeed } from '@/src/server/personnel-seed';
 
 export const runtime='nodejs';
@@ -74,6 +75,7 @@ async function handle(req:NextRequest,{params}:{params:Promise<{path:string[]}>}
       allow('notification.read');const scope=scopeSql(actor);result=await rows(`SELECT j.*,m.display_name,a.appointment_date,a.appointment_time,r.days_before FROM notification_jobs j JOIN health_check_appointments a ON a.id=j.appointment_id JOIN fiscal_year_members m ON m.id=a.member_id JOIN notification_rules r ON r.id=j.rule_id WHERE a.fiscal_year_id=? AND ${scope.sql} ORDER BY j.created_at DESC LIMIT 200`,[id.parse(url.get('year')),...scope.params]);
     }
     else if(path[0]==='notifications'&&path[2]==='retry'&&method==='POST'){allow('notification.manage');const input=z.object({reason:text(500),acknowledgeUnknown:z.boolean().default(false)}).parse(await jsonBody(req));result=await retryNotification(z.uuid().parse(path[1]),input.reason,input.acknowledgeUnknown,actor);}
+    else if(route==='notifications/test'&&method==='POST'){allow('notification.manage');result=await sendTestNotification(await jsonBody(req),actor);}
     else if(route==='notifications/preview'&&method==='POST'){allow('notification.manage');const input=z.object({appointmentId:id}).parse(await jsonBody(req));const [a]=await rows('SELECT appointment_date,appointment_time,location FROM health_check_appointments WHERE id=?',[input.appointmentId]);ensure(a,'ไม่พบนัด',404);result={message:reminderText(a),sent:false};}
     else if(route==='audit'&&method==='GET'){allow('audit.read');result=await rows('SELECT a.id,a.action,a.entity_type,a.entity_id,a.changes,a.created_at,u.display_name actor FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_user_id ORDER BY a.id DESC LIMIT 200');}
     else if(route==='users'&&method==='POST'){allow('user.manage');result=await saveUser(await jsonBody(req),actor);}

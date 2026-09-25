@@ -15,7 +15,7 @@
 
 ## Lifecycle และกฎหลัก
 
-1. หน้าแรกเป็นปฏิทินสาธารณะ (ข้อมูลรวมเท่านั้น) พร้อม Login ด้านขวาบน; Admin จัดการที่ /admin → นำเข้าบุคลากรพร้อม master จาก private seed → เปิดปี พ.ศ. → สร้างแผนและรายการตรวจ → เพิ่มทะเบียนทั้งชุดและสิทธิ์รายบริการ/รอบ
+1. หน้าแรกเป็นปฏิทินสาธารณะ (ข้อมูลรวมเท่านั้น) พร้อม Login ด้านขวาบน; Admin จัดการที่ /admin → นำเข้าบุคลากรพร้อม master จาก private seed → เปิดปี พ.ศ. (ระบบเตรียมบริการประจำ ทันตกรรม/แผนไทย/กายภาพ/ตรวจเลือด ให้โดยอัตโนมัติ) → เพิ่มทะเบียนทั้งชุดและสิทธิ์รายบริการ/รอบ
 2. บุคลากรมี employee_code คงที่และประวัติ assignment ช่วง `[valid_from, valid_to)`; ทะเบียนรายปีเก็บ snapshot ชื่อ หน่วยงาน ตำแหน่ง ณ วันอ้างอิง ไม่เปลี่ยนย้อนหลังเมื่อแก้ master/ย้ายงาน
 3. ปี 2570 เท่ากับ 2026-10-01 ถึง 2027-09-30 วันนัดเก็บ DATE และ TIME ตาม Asia/Bangkok ส่วน audit/session/worker timestamps เก็บ UTC ทุก connection ตั้ง session time_zone=+00:00
 4. หนึ่งนัดมีหลายรายการในกลุ่มบริการเดียวกัน มี `round_no` (รอบตรวจ) และ `attempt_no` (นัดทดแทน) แยกกัน UNIQUE `(plan,member,group,round,attempt)` ไม่ใช้เพียงคน+ปี
@@ -26,7 +26,7 @@
 9. การแก้กำหนดนัดเพิ่ม `schedule_version` และยกเลิกคิวแจ้งเตือนเดิม การปิดปี/แผนระงับการเขียนนัดและ worker ตรวจสถานะซ้ำก่อนส่ง
 10. ไม่มีการ hard delete บุคลากร/master/นัดผ่าน API ใช้ inactive/cancel เพื่อรักษาประวัติ
 
-## ตาราง 35 ตาราง + schema_migrations
+## ตาราง 37 ตาราง + schema_migrations
 
 | ตาราง | หน้าที่ / key สำคัญ |
 |---|---|
@@ -42,6 +42,8 @@
 | employees | employee_code unique; CID เป็น ciphertext และ keyed HMAC unique แบบ nullable; ไม่มี CID ก็จัดนัดได้ |
 | employee_assignments | ประวัติช่วงวันที่ของหน่วยงาน/ตำแหน่ง/ระดับ/ประเภทการจ้าง |
 | fiscal_years | fiscal_year unique; CHECK วันเริ่ม/สิ้นสุดให้ตรงปี พ.ศ. |
+| standard_health_services | ผูกบริการประจำทั้ง 4 กับ service_id คงที่ ใช้ร่วมกันข้ามปี |
+| notification_test_sends | คำขอส่งทดสอบโดย Admin, request UUID unique, ผลส่งและ audit โดยไม่เก็บ CID/ข้อความ |
 | fiscal_year_members | unique(year,employee), snapshot สำหรับรายงานประจำปี |
 | health_check_plans | รหัสแผน unique, FK ปี, ช่วงวันที่, สถานะ/version |
 | service_groups / health_check_services | หมวดและรายการตรวจ ตั้งค่าได้จากเว็บ |

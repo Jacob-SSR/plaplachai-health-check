@@ -2,12 +2,14 @@ import { test,expect } from '@playwright/test';
 import ExcelJS from 'exceljs';
 import { HEADERS } from '../../src/server/excel';
 import { testGuard,fixture } from '../fixture';
-import { closePool } from '../../src/server/db';
+import { closePool,execute,rows } from '../../src/server/db';
+import { encrypt } from '../../src/server/crypto';
 import { randomUUID } from 'node:crypto';
 testGuard();
 test.afterAll(closePool);
 test('admin browser journey, permissions and responsive layout',async({page,request})=>{
  const f=await fixture();
+ await execute('UPDATE employees SET notification_enabled=1,cid_ciphertext=?,cid_verified_at=UTC_TIMESTAMP() WHERE id=?',[encrypt('1234567890121'),f.people[0].employeeId]);
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  expect((await request.get('/api/v1/employees')).status()).toBe(401);
  await page.goto('/');await expect(page.getByRole('heading',{name:'ตารางตรวจสุขภาพบุคลากร',exact:true})).toBeVisible();
@@ -37,7 +39,7 @@ test('admin browser journey, permissions and responsive layout',async({page,requ
  await expect(page.getByRole('heading',{name:'ตารางนัดตรวจสุขภาพ'})).toBeVisible();
  await page.getByRole('button',{name:'เพิ่มนัดหมาย',exact:true}).click();
  await page.getByLabel('บุคลากรในทะเบียนปีนี้').selectOption(String(f.people[0].memberId));
- await page.getByLabel('แผนตรวจ',{exact:true}).selectOption(String(f.planId));
+ await page.getByLabel('ชุดตรวจประจำปี',{exact:true}).selectOption(String(f.planId));
  await page.getByRole('region',{name:'เพิ่มนัดหมาย'}).getByLabel('กลุ่มบริการ',{exact:true}).selectOption(String(f.groupId));
  await page.getByLabel('วันที่นัด',{exact:true}).fill(f.day);
  await page.getByLabel('เวลานัด',{exact:true}).fill('23:45');
@@ -52,7 +54,7 @@ test('admin browser journey, permissions and responsive layout',async({page,requ
  await page.getByRole('button',{name:'ปฏิทิน',exact:true}).click();await expect(page.locator('.calendar')).toBeVisible();
  await page.getByRole('button',{name:'นำเข้า Excel',exact:true}).click();
  await expect(page.getByRole('heading',{name:'นำเข้านัดหมายจาก Excel'})).toBeVisible();
- await page.getByLabel('แผนการตรวจ',{exact:true}).selectOption(String(f.planId));
+ await page.getByLabel('ชุดตรวจประจำปี',{exact:true}).selectOption(String(f.planId));
  const download=page.waitForEvent('download');await page.getByRole('link',{name:/ดาวน์โหลดแม่แบบ/}).click();expect((await download).suggestedFilename()).toContain('.xlsx');
  const book=new ExcelJS.Workbook(),sheet=book.addWorksheet('Appointments');sheet.addRow([...HEADERS]);sheet.addRow(['CREATE','','',f.fy,f.planCode,f.people[1].employeeCode,f.groupCode,1,1,f.day,'23:10','','ห้องทดสอบ',f.serviceCode,'']);
  await page.locator('input[type=file]').setInputFiles({name:'synthetic-appointments.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(await book.xlsx.writeBuffer())});
@@ -60,6 +62,15 @@ test('admin browser journey, permissions and responsive layout',async({page,requ
  await page.getByRole('button',{name:'ยืนยันนำเข้าทั้งชุด',exact:true}).click();await expect(page.getByText('บันทึกสำเร็จ 1 นัดหมาย',{exact:true})).toBeVisible();
  await page.getByRole('button',{name:'รายงาน',exact:true}).click();await expect(page.getByRole('heading',{name:'รายงานการตรวจสุขภาพ'})).toBeVisible();
  await page.getByRole('button',{name:'แจ้งเตือน',exact:true}).click();await expect(page.getByText('ปิดการแจ้งเตือน',{exact:true})).toBeVisible();
+ await page.getByLabel('ผู้รับข้อความทดสอบ',{exact:true}).selectOption(String(f.people[0].employeeId));
+ await page.getByRole('button',{name:'ส่งข้อความทดสอบ',exact:true}).click();
+ await expect(page.getByRole('region',{name:'ทดสอบแจ้งเตือน',exact:true}).getByRole('alert')).toContainText('MOPH_LIVE_ENABLED');
+ // Verify success feedback with an explicit browser stub, never contact MOPH in E2E.
+ await page.route('**/api/v1/notifications/test',async route=>{const input=route.request().postDataJSON();expect(input.employeeId).toBe(f.people[0].employeeId);expect(input.requestId).toMatch(/^[a-f0-9-]{36}$/);await route.fulfill({json:{id:input.requestId,status:'ACCEPTED',safe_error:null}});});
+ await page.getByRole('button',{name:'ตรวจผลคำขอเดิม',exact:true}).click();
+ await expect(page.getByRole('status')).toContainText('MOPH รับคำขอแล้ว');
+ await page.screenshot({path:'test-results/test-notification.png',fullPage:true});
+ await page.unroute('**/api/v1/notifications/test');
  await page.getByRole('button',{name:'ข้อมูลตั้งต้น',exact:true}).click();await expect(page.getByRole('button',{name:'เพิ่มปีงบประมาณ',exact:true})).toBeVisible();
  await page.getByRole('button',{name:'ตารางนัดหมาย',exact:true}).click();await expect(page.getByRole('heading',{name:'ตารางนัดตรวจสุขภาพ'})).toBeVisible();
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'test-results/dashboard-mobile.png',fullPage:true});
@@ -68,4 +79,20 @@ test('admin browser journey, permissions and responsive layout',async({page,requ
  expect(await page.evaluate(async()=>{const r=await fetch('/api/v1/years',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({year:2575})});return r.status;})).toBe(403);
  expect(await page.evaluate(async token=>{const r=await fetch('/api/v1/years',{method:'POST',headers:{'Content-Type':'application/json','x-csrf-token':token},body:JSON.stringify({year:2027})});return r.status;},csrf)).toBe(422);
  expect(errors).toEqual([]);
+});
+
+test('new fiscal year has all four services without a manual plan',async({page})=>{
+ const existing=await rows<{fiscal_year:number}>('SELECT fiscal_year FROM fiscal_years');const used=new Set(existing.map(y=>y.fiscal_year));
+ const year=Array.from({length:100},(_,i)=>2700+i).find(y=>!used.has(y))!;
+ await page.goto('/login');await page.getByLabel('ชื่อผู้ใช้',{exact:true}).fill(process.env.ADMIN_USERNAME!);await page.getByLabel('รหัสผ่าน',{exact:true}).fill(process.env.ADMIN_PASSWORD!);await page.getByRole('button',{name:'เข้าสู่ระบบ',exact:true}).click();
+ await page.getByRole('button',{name:'ข้อมูลตั้งต้น',exact:true}).click();await page.getByRole('button',{name:'เพิ่มปีงบประมาณ',exact:true}).click();await page.getByLabel('ปีงบประมาณ พ.ศ.').fill(String(year));await page.getByRole('button',{name:'บันทึกข้อมูล',exact:true}).click();
+ await expect(page.getByRole('region',{name:'เพิ่มปีงบประมาณ'})).toBeHidden();
+ await page.getByLabel('ปีงบประมาณ',{exact:true}).selectOption({label:String(year)});
+ await page.getByRole('button',{name:'ผู้มีสิทธิ์ประจำปี',exact:true}).click();
+ await expect(page.getByRole('button',{name:'เพิ่มแผนการตรวจ',exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:'เพิ่มผู้มีสิทธิ์',exact:true}).click();
+ await expect(page.getByLabel('ปีที่จัดตารางตรวจ')).toHaveValue(`ตรวจสุขภาพบุคลากร ปี ${year}`);
+ await expect(page.getByRole('combobox',{name:'ชุดตรวจประจำปี'})).toHaveCount(0);
+ for(const name of ['ทันตกรรม','แผนไทย','กายภาพ','ตรวจเลือด'])await expect(page.getByRole('checkbox',{name,exact:true})).toBeChecked();
+ await page.screenshot({path:'test-results/permanent-services.png',fullPage:true});
 });

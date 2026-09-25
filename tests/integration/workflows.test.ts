@@ -9,6 +9,8 @@ import { validateImport,confirmImport,template,exportAppointments,parseWorkbook,
 import { reports } from '../../src/server/reports';
 import { dispatchOne,scheduleReminders } from '../../src/server/notifications';
 import { addDays } from '../../src/domain/validation';
+import { sendTestNotification } from '../../src/server/notification-test';
+import { encrypt } from '../../src/server/crypto';
 testGuard();after(()=>pool().end());
 test('transactional scheduling, scoped reads, Excel roundtrip and worker safeguards',async t=>{
  const f=await fixture(),a=f.actor;
@@ -72,4 +74,38 @@ test('transactional scheduling, scoped reads, Excel roundtrip and worker safegua
    assert.equal(calls,0);const [r]=await rows('SELECT status FROM notification_jobs WHERE appointment_id=?',[appt.id]);assert.equal(r.status,'DRY_RUN');
   }finally{await execute('UPDATE notification_settings SET enabled=?,mode=? WHERE id=1',[original.enabled,original.mode]);}
  });
+});
+
+test('manual notification verifies gates, sends once, and preserves uncertain outcomes',async()=>{
+ const f=await fixture(),actor={...f.actor,permissions:['notification.manage']},employeeId=f.people[0].employeeId;
+ const request={employeeId,requestId:randomUUID()};let calls=0;
+ const provider={send:async(cid:string,message:string)=>{calls++;assert.equal(cid,'1234567890121');assert.ok(message.includes('ข้อความทดสอบ'));return {outcome:'ACCEPTED' as const};}};
+ const keys=['MOPH_LIVE_ENABLED','MOPH_CLIENT_KEY','MOPH_SECRET_KEY'],oldEnv=keys.map(k=>process.env[k]);
+ const [settings]=await rows('SELECT enabled,mode FROM notification_settings WHERE id=1');
+ try{
+  await assert.rejects(sendTestNotification(request,{...actor,permissions:[]},provider),/สิทธิ์/);
+  await assert.rejects(sendTestNotification(request,actor,provider),/MOPH_LIVE_ENABLED/);
+  process.env.MOPH_LIVE_ENABLED='true';delete process.env.MOPH_CLIENT_KEY;delete process.env.MOPH_SECRET_KEY;
+  await assert.rejects(sendTestNotification(request,actor,provider),/Client_ID/);
+  process.env.MOPH_CLIENT_KEY='fake';process.env.MOPH_SECRET_KEY='fake';
+  await execute("UPDATE notification_settings SET enabled=1,mode='DRY_RUN' WHERE id=1");
+  await assert.rejects(sendTestNotification(request,actor,provider),/LIVE/);
+  await execute("UPDATE notification_settings SET enabled=1,mode='LIVE' WHERE id=1");
+  await assert.rejects(sendTestNotification(request,actor,provider),/ผู้รับต้อง/);assert.equal(calls,0);
+  await execute('UPDATE employees SET notification_enabled=1,cid_ciphertext=?,cid_verified_at=UTC_TIMESTAMP() WHERE id=?',[encrypt('1234567890121'),employeeId]);
+  const results=await Promise.all([sendTestNotification(request,actor,provider),sendTestNotification(request,actor,provider)]);
+  assert.equal(calls,1);assert.ok(results.some(r=>r.status==='ACCEPTED'));
+  assert.equal((await sendTestNotification(request,actor,provider)).status,'ACCEPTED');assert.equal(calls,1);
+  await assert.rejects(sendTestNotification({...request,requestId:randomUUID()},actor,provider),/1 นาที/);
+  await execute('UPDATE notification_test_sends SET created_at=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 2 MINUTE) WHERE id=?',[request.requestId]);
+  const uncertain={...request,requestId:randomUUID()};
+  const failedTransport={send:async()=>{calls++;throw Error('secret payload must not escape');}};
+  const unknown=await sendTestNotification(uncertain,actor,failedTransport);assert.equal(unknown.status,'UNKNOWN');assert.ok(!JSON.stringify(unknown).includes('secret payload'));
+  assert.equal((await sendTestNotification(uncertain,actor,failedTransport)).status,'UNKNOWN');assert.equal(calls,2);
+  const pending=randomUUID();await execute("INSERT INTO notification_test_sends(id,actor_user_id,employee_id,status,created_at) VALUES(?,?,?,'SENDING',DATE_SUB(UTC_TIMESTAMP(),INTERVAL 3 MINUTE))",[pending,actor.id,employeeId]);
+  assert.equal((await sendTestNotification({...request,requestId:pending},actor,provider)).status,'UNKNOWN');assert.equal(calls,2);
+ }finally{
+  keys.forEach((k,i)=>{if(oldEnv[i]===undefined)delete process.env[k];else process.env[k]=oldEnv[i];});
+  await execute('UPDATE notification_settings SET enabled=?,mode=? WHERE id=1',[settings.enabled,settings.mode]);
+ }
 });

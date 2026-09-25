@@ -24,7 +24,7 @@ export function Workspace({actor}:{actor:Actor}){
   if(!yearId&&masters.years?.length){if(alive){setData({...empty,masters});setYearId(s(masters.years[0].id));}return;}
   const can=(p:string)=>actor.permissions.includes(p);
   const [employees,members,appointments,calendar,report,users,jobs,settings,audit,imports]=await Promise.all([
-   ['personnel','roster'].includes(tab)&&can('employee.read')?api('employees'):[],
+   ['personnel','roster','notifications'].includes(tab)&&can('employee.read')?api('employees'):[],
    yearId&&['schedule','roster','imports'].includes(tab)&&can('employee.read')?api(`members?year=${yearId}`):[],
    yearId&&tab==='schedule'?api(`appointments?${query}`):{data:[],total:0},
    yearId&&tab==='schedule'?api(`calendar?${query}`):{data:[]},
@@ -38,13 +38,13 @@ export function Workspace({actor}:{actor:Actor}){
  {year&&<div className="period"><span>{thaiDate(year.start_date)} – {thaiDate(year.end_date)}</span><span>{year.status==='OPEN'?'เปิดบันทึกข้อมูล':'ปิดปีงบประมาณแล้ว'}</span></div>}
  {error&&<div role="alert" className="error">{error} <button onClick={reload}>ลองอีกครั้ง</button></div>}
  {busy&&<div className="loading" role="status">กำลังโหลดข้อมูล…</div>}
- {!error&&<>{!year&&tab!=='settings'&&tab!=='users'&&tab!=='audit'?<section className="surface welcome"><ClipboardList size={42}/><h2>เริ่มต้นวางแผนตรวจสุขภาพ</h2><p>เพิ่มปีงบประมาณ หน่วยงาน ตำแหน่ง และรายการตรวจ<br/>จากนั้นสร้างแผนและทะเบียนผู้มีสิทธิ์ประจำปี</p>{canManage&&<button className="primary" onClick={()=>setTab('settings')}>ตั้งค่าข้อมูลเริ่มต้น</button>}</section>:<>
+ {!error&&<>{!year&&tab!=='settings'&&tab!=='users'&&tab!=='audit'&&tab!=='notifications'?<section className="surface welcome"><ClipboardList size={42}/><h2>เริ่มต้นวางแผนตรวจสุขภาพ</h2><p>เพิ่มปีงบประมาณ แล้วนำเข้าบุคลากรและเพิ่มผู้มีสิทธิ์ประจำปี<br/>ทันตกรรม แผนไทย กายภาพ และตรวจเลือด พร้อมใช้ทุกปี</p>{canManage&&<button className="primary" onClick={()=>setTab('settings')}>ตั้งค่าข้อมูลเริ่มต้น</button>}</section>:<>
  {['schedule','reports'].includes(tab)&&<Metrics report={data.report}/>}
  {tab==='schedule'&&year&&<Schedule key={year.id} data={data.appointments.data} total={data.appointments.total} calendar={data.calendar} masters={data.masters} members={data.members} year={year} api={api} reload={reload} permissions={actor.permissions} filters={filters} setFilters={setFilters} query={query}/>}
  {['personnel','roster','settings','users'].includes(tab)&&<Registry key={`${tab}-${yearId}`} tab={tab} masters={data.masters} employees={data.employees} members={data.members} year={year} api={api} reload={reload} canManage={canManage} users={data.users}/>}
  {tab==='imports'&&year&&<Imports key={year.id} year={year} masters={data.masters} members={data.members} api={api} csrf={actor.csrf} reload={reload} history={data.imports}/>}
  {tab==='reports'&&data.report&&<><div className="surface"><FiltersBar masters={data.masters} filters={filters} setFilters={setFilters}/></div><Reports report={data.report} query={query} canExport={actor.permissions.includes('export.execute')}/></>}
- {tab==='notifications'&&data.settings&&<Notifications jobs={data.jobs} settings={data.settings} api={api} reload={reload}/>}
+ {tab==='notifications'&&data.settings&&<Notifications employees={data.employees} jobs={data.jobs} settings={data.settings} api={api} reload={reload}/>}
  {tab==='audit'&&<><div className="section-head"><div><h2>ประวัติการใช้งาน</h2><p className="muted">200 เหตุการณ์ล่าสุด · เวลา UTC</p></div></div><div className="surface"><Table headers={['เวลา UTC','ผู้ดำเนินการ','การกระทำ','รายการอ้างอิง','รายละเอียด']} empty={!data.audit.length}>{data.audit.map(a=><tr key={a.id}><td>{s(a.created_at)}</td><td>{s(a.actor)||'Worker'}</td><td>{s(a.action)}</td><td>{s(a.entity_type)} #{s(a.entity_id)}</td><td className="audit-detail">{JSON.stringify(a.changes)}</td></tr>)}</Table></div></>}
  </>}</>}
  </main><footer className="page-footer">ระบบตรวจสุขภาพบุคลากร · โรงพยาบาลพลับพลาชัย <span>ข้อมูลสำหรับผู้มีสิทธิ์ใช้งานเท่านั้น</span></footer></div></div>;
