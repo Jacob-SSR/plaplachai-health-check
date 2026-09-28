@@ -14,6 +14,7 @@ test('server enforces viewer permissions, scopes, Origin and CSRF',async({reques
  expect((await request.post('/api/v1/auth/login',{data:{username,password},headers:{Origin:origin}})).status()).toBe(200);
  const me=await(await request.get('/api/v1/me')).json();expect(me.roles).toEqual(['VIEWER']);
  expect((await request.get('/api/v1/employees')).status()).toBe(403);
+ expect((await request.get('/api/v1/hosxp/oapp')).status()).toBe(403);
  expect((await request.get(`/api/v1/appointments?year=${f.yearId}`)).status()).toBe(403);
  expect((await request.get(`/api/v1/exports/appointments?year=${f.yearId}`)).status()).toBe(403);
  expect((await request.get('/api/v1/notification-settings')).status()).toBe(403);

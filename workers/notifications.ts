@@ -1,10 +1,12 @@
 import 'dotenv/config';
 import { pool,execute } from '../src/server/db';
-import { scheduleReminders,dispatchOne } from '../src/server/notifications';
+import { dispatchOne } from '../src/server/notifications';
+import { syncHosxpAppointments } from '../src/server/hosxp-sync';
+import { closeHosxpPool } from '../src/server/hosxp';
 let stopping=false;
 process.on('SIGINT',()=>{stopping=true;});process.on('SIGTERM',()=>{stopping=true;});
 async function tick() {
-  await scheduleReminders();
+  await syncHosxpAppointments();
   for(let n=0;n<100&&!stopping;n++){if(!await dispatchOne())break;await new Promise(resolve=>setTimeout(resolve,1000));}
   await execute("UPDATE import_batches SET status='EXPIRED' WHERE status IN ('READY','INVALID') AND expires_at<UTC_TIMESTAMP()");
   // Staging contains scheduling data only. Keep audit/counts, remove expired payloads.
@@ -15,8 +17,8 @@ async function tick() {
 async function main(){
   do{try{await tick();}catch(e){console.error('Notification worker failed:',e&&typeof e==='object'&&'code' in e?e.code:'WORKER_ERROR');if(process.argv.includes('--once'))process.exitCode=1;}
     if(process.argv.includes('--once'))break;
-    for(let i=0;i<60&&!stopping;i++)await new Promise(resolve=>setTimeout(resolve,1000));
+    for(let i=0;i<15&&!stopping;i++)await new Promise(resolve=>setTimeout(resolve,1000));
   }while(!stopping);
-  await pool().end();
+  await pool().end();await closeHosxpPool();
 }
 void main();

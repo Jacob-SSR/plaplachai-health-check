@@ -1,6 +1,4 @@
 import { test,expect } from '@playwright/test';
-import ExcelJS from 'exceljs';
-import { HEADERS } from '../../src/server/excel';
 import { testGuard,fixture } from '../fixture';
 import { closePool,execute,rows } from '../../src/server/db';
 import { encrypt } from '../../src/server/crypto';
@@ -34,33 +32,23 @@ test('admin browser journey, permissions and responsive layout',async({page,requ
  await page.getByRole('button',{name:'บันทึกข้อมูล',exact:true}).click();
  await expect(page.getByRole('region',{name:'นำเข้าบุคลากร หน่วยงาน และตำแหน่งพร้อมกัน'})).toBeHidden();
  await expect(page.getByText(person.firstName+' '+person.lastName,{exact:true})).toBeVisible();
- await page.getByRole('button',{name:'ตารางนัดหมาย',exact:true}).click();
- await page.getByLabel('ปีงบประมาณ',{exact:true}).selectOption(String(f.yearId));
- await expect(page.getByRole('heading',{name:'ตารางนัดตรวจสุขภาพ'})).toBeVisible();
- await page.getByRole('button',{name:'เพิ่มนัดหมาย',exact:true}).click();
- await page.getByLabel('บุคลากรในทะเบียนปีนี้').selectOption(String(f.people[0].memberId));
- await page.getByLabel('ชุดตรวจประจำปี',{exact:true}).selectOption(String(f.planId));
- await page.getByRole('region',{name:'เพิ่มนัดหมาย'}).getByLabel('กลุ่มบริการ',{exact:true}).selectOption(String(f.groupId));
- await page.getByLabel('วันที่นัด',{exact:true}).fill(f.day);
- await page.getByLabel('เวลานัด',{exact:true}).fill('23:45');
- await page.getByLabel('สถานที่',{exact:true}).fill('ห้องตรวจทดสอบ');
- await page.getByRole('checkbox',{name:'ตรวจทั่วไป',exact:true}).check();
- await page.getByRole('button',{name:'บันทึกข้อมูล',exact:true}).click();
- await expect(page.getByRole('region',{name:'เพิ่มนัดหมาย'})).toBeHidden();
- await page.getByLabel('ค้นหาบุคลากร').fill(f.people[0].employeeCode);
- await expect(page.locator('tbody tr')).toHaveCount(1);
- await expect(page.locator('tbody')).toContainText('ทดสอบ1');
+ // Browser fixture covers display only; no hospital or MOPH connection is used.
+ await page.route('**/api/v1/hosxp/oapp?*',async route=>route.fulfill({json:{source:'HOSXP',total:1,data:[{oapp_id:'synthetic-oapp',display_name:'บุคลากรทดสอบ HOSxP',appointment_date:f.day,appointment_time:'09:30:00',clinic:'015',depcode:'015',location:'ห้องทดสอบ'}]}}));
+ await page.getByRole('button',{name:'นัดหมายจาก HOSxP',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'นัดหมายจาก HOSxP',exact:true})).toBeVisible();
+ await expect(page.getByText('บุคลากรทดสอบ HOSxP',{exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'เพิ่มนัดหมาย',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'นำเข้า Excel',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'แก้ไข',exact:true})).toHaveCount(0);
+ const retired=await page.evaluate(async()=>{
+  const me=await(await fetch('/api/v1/me')).json();const statuses=[];
+  for(const [path,method] of [['appointments','POST'],['appointments/1','PATCH'],['appointments/1/status','PATCH'],['imports/validate','POST'],['imports/old/confirm','POST']]) {
+   const r=await fetch('/api/v1/'+path,{method,headers:{'Content-Type':'application/json','x-csrf-token':me.csrf},body:'{}'});statuses.push(r.status);
+  }
+  return statuses;
+ });expect(retired).toEqual([410,410,410,410,410]);
  await page.screenshot({path:'test-results/dashboard-desktop.png',fullPage:true});
- await page.getByRole('button',{name:'ปฏิทิน',exact:true}).click();await expect(page.locator('.calendar')).toBeVisible();
- await page.getByRole('button',{name:'นำเข้า Excel',exact:true}).click();
- await expect(page.getByRole('heading',{name:'นำเข้านัดหมายจาก Excel'})).toBeVisible();
- await page.getByLabel('ชุดตรวจประจำปี',{exact:true}).selectOption(String(f.planId));
- const download=page.waitForEvent('download');await page.getByRole('link',{name:/ดาวน์โหลดแม่แบบ/}).click();expect((await download).suggestedFilename()).toContain('.xlsx');
- const book=new ExcelJS.Workbook(),sheet=book.addWorksheet('Appointments');sheet.addRow([...HEADERS]);sheet.addRow(['CREATE','','',f.fy,f.planCode,f.people[1].employeeCode,f.groupCode,1,1,f.day,'23:10','','ห้องทดสอบ',f.serviceCode,'']);
- await page.locator('input[type=file]').setInputFiles({name:'synthetic-appointments.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(await book.xlsx.writeBuffer())});
- await page.getByRole('button',{name:'ตรวจสอบข้อมูล',exact:true}).click();await expect(page.getByRole('heading',{name:'ผลการตรวจสอบ'})).toBeVisible();
- await page.getByRole('button',{name:'ยืนยันนำเข้าทั้งชุด',exact:true}).click();await expect(page.getByText('บันทึกสำเร็จ 1 นัดหมาย',{exact:true})).toBeVisible();
- await page.getByRole('button',{name:'รายงาน',exact:true}).click();await expect(page.getByRole('heading',{name:'รายงานการตรวจสุขภาพ'})).toBeVisible();
+ await page.getByRole('button',{name:'รายงานข้อมูลเดิม',exact:true}).click();await expect(page.getByRole('heading',{name:'รายงานการตรวจสุขภาพ'})).toBeVisible();
  await page.getByRole('button',{name:'แจ้งเตือน',exact:true}).click();await expect(page.getByText('ปิดการแจ้งเตือน',{exact:true})).toBeVisible();
  await page.getByLabel('ผู้รับข้อความทดสอบ',{exact:true}).selectOption(String(f.people[0].employeeId));
  await page.getByRole('button',{name:'ส่งข้อความทดสอบ',exact:true}).click();
@@ -73,7 +61,7 @@ test('admin browser journey, permissions and responsive layout',async({page,requ
  await page.screenshot({path:'test-results/test-notification.png',fullPage:true});
  await page.unroute('**/api/v1/notifications/test');
  await page.getByRole('button',{name:'ข้อมูลตั้งต้น',exact:true}).click();await expect(page.getByRole('button',{name:'เพิ่มปีงบประมาณ',exact:true})).toBeVisible();
- await page.getByRole('button',{name:'ตารางนัดหมาย',exact:true}).click();await expect(page.getByRole('heading',{name:'ตารางนัดตรวจสุขภาพ'})).toBeVisible();
+ await page.getByRole('button',{name:'นัดหมายจาก HOSxP',exact:true}).click();await expect(page.getByRole('heading',{name:'นัดหมายจาก HOSxP'})).toBeVisible();
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'test-results/dashboard-mobile.png',fullPage:true});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
  const csrf=await page.evaluate(async()=>{const r=await fetch('/api/v1/me');return (await r.json()).csrf;});

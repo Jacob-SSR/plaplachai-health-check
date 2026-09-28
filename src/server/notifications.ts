@@ -6,15 +6,18 @@ import { type Actor } from './auth';
 import { decrypt } from './crypto';
 import { audit } from './audit';
 import { MophAlertProvider,type NotificationProvider } from '../providers/moph-alert';
+import { futureHosxpAppointment,hosxpAppointmentStillCurrent } from './hosxp-sync';
 
 export function reminderText(appointment:Record<string,unknown>) {
   const d=new Date(String(appointment.appointment_date)+'T00:00:00+07:00');
   const thai=new Intl.DateTimeFormat('th-TH',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Bangkok'}).format(d);
-  return `โรงพยาบาลพลับพลาชัย ขอแจ้งนัดตรวจสุขภาพวันที่ ${thai} เวลา ${String(appointment.appointment_time).slice(0,5)} น. ณ ${appointment.location} หากต้องการเลื่อนนัด โปรดติดต่อเจ้าหน้าที่`;
+  const time=appointment.appointment_time?`เวลา ${String(appointment.appointment_time).slice(0,5)} น.`:'กรุณาติดต่อเจ้าหน้าที่เพื่อยืนยันเวลา';
+  return `โรงพยาบาลพลับพลาชัย ขอแจ้งนัดวันที่ ${thai} ${time} ณ ${appointment.location||'โรงพยาบาลพลับพลาชัย'} หากต้องการเลื่อนนัด โปรดติดต่อเจ้าหน้าที่`;
 }
 export async function notificationSettings() {
   const [settings]=await rows('SELECT * FROM notification_settings WHERE id=1');
-  return {...settings,rules:await rows('SELECT * FROM notification_rules ORDER BY days_before DESC'),credentialConfigured:!!(process.env.MOPH_CLIENT_KEY&&process.env.MOPH_SECRET_KEY),serverLiveEnabled:process.env.MOPH_LIVE_ENABLED==='true'};
+  const [hosxp]=await rows('SELECT initialized,last_success_at FROM hosxp_sync_state WHERE id=1');
+  return {...settings,hosxp,rules:await rows('SELECT * FROM notification_rules ORDER BY days_before DESC'),credentialConfigured:!!(process.env.MOPH_CLIENT_KEY&&process.env.MOPH_SECRET_KEY),serverLiveEnabled:process.env.MOPH_LIVE_ENABLED==='true'};
 }
 export async function scheduleReminders(now=new Date()) {
   const [settings]=await rows<RecordRow>('SELECT * FROM notification_settings WHERE id=1');if(!settings?.enabled)return 0;
@@ -36,10 +39,13 @@ export async function dispatchOne(provider:NotificationProvider=new MophAlertPro
   const claimed=await transaction(async db=>{
     const [settings]=await rows<RecordRow>('SELECT * FROM notification_settings WHERE id=1');if(!settings?.enabled)return null;
     const [job]=await rows<RecordRow>("SELECT * FROM notification_jobs WHERE status='PENDING' AND available_at<=UTC_TIMESTAMP(6) ORDER BY available_at LIMIT 1 FOR UPDATE SKIP LOCKED",[],db);if(!job)return null;
-    const [a]=await rows<RecordRow>(`SELECT a.*,e.cid_ciphertext,e.cid_verified_at,e.notification_enabled,e.active,m.eligibility_status,p.status plan_status,y.status year_status
+    const [a]=job.hosxp_oapp_id?await rows<RecordRow>(`SELECT a.*,a.active source_active,e.cid_ciphertext,e.cid_verified_at,e.notification_enabled,e.active
+     FROM hosxp_appointments a JOIN employees e ON e.id=a.employee_id WHERE a.oapp_id=?`,[job.hosxp_oapp_id],db):await rows<RecordRow>(`SELECT a.*,e.cid_ciphertext,e.cid_verified_at,e.notification_enabled,e.active,m.eligibility_status,p.status plan_status,y.status year_status
      FROM health_check_appointments a JOIN fiscal_year_members m ON m.id=a.member_id JOIN employees e ON e.id=m.employee_id JOIN health_check_plans p ON p.id=a.plan_id JOIN fiscal_years y ON y.id=a.fiscal_year_id WHERE a.id=?`,[job.appointment_id],db);
     const {day,clock}=bangkokNow();
-    if(!a||a.status!=='SCHEDULED'||a.plan_status!=='OPEN'||a.year_status!=='OPEN'||!a.active||a.eligibility_status!=='ELIGIBLE'||Number(a.schedule_version)!==Number(job.schedule_version)||`${a.appointment_date} ${a.appointment_time}`<=`${day} ${clock}:00`) {
+    const ineligible=job.hosxp_oapp_id?(!a||!a.source_active||!a.active||Number(a.schedule_version)!==Number(job.schedule_version)||!futureHosxpAppointment(String(a.appointment_date),a.appointment_time as string|null)):
+      (!a||a.status!=='SCHEDULED'||a.plan_status!=='OPEN'||a.year_status!=='OPEN'||!a.active||a.eligibility_status!=='ELIGIBLE'||Number(a.schedule_version)!==Number(job.schedule_version)||`${a.appointment_date} ${a.appointment_time}`<=`${day} ${clock}:00`);
+    if(ineligible) {
       await execute("UPDATE notification_jobs SET status='CANCELLED',safe_error='APPOINTMENT_NO_LONGER_ELIGIBLE' WHERE id=?",[job.id],db);return {skipped:true};
     }
     if(settings.mode==='DRY_RUN') {
@@ -49,6 +55,9 @@ export async function dispatchOne(provider:NotificationProvider=new MophAlertPro
       await execute("UPDATE notification_jobs SET status='BLOCKED',safe_error='ผู้รับยังไม่เปิดแจ้งเตือนหรือยังไม่ตรวจรับ CID' WHERE id=?",[job.id],db);return {skipped:true};
     }
     let cid:string;try{cid=decrypt(String(a.cid_ciphertext));}catch{await execute("UPDATE notification_jobs SET status='BLOCKED',safe_error='กุญแจข้อมูลผู้รับไม่พร้อม' WHERE id=?",[job.id],db);return {skipped:true};}
+    if(job.hosxp_oapp_id&&!await hosxpAppointmentStillCurrent(a,cid)) {
+      await execute("UPDATE notification_jobs SET status='CANCELLED',safe_error='HOSXP_APPOINTMENT_CHANGED' WHERE id=?",[job.id],db);return {skipped:true};
+    }
     await execute("UPDATE notification_jobs SET status='SENDING',attempt_count=attempt_count+1,lease_until=DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 2 MINUTE) WHERE id=?",[job.id],db);
     await execute("INSERT INTO notification_attempts(job_id,attempt_no,outcome) VALUES(?,?,'STARTED')",[job.id,Number(job.attempt_count)+1],db);
     return {skipped:false,jobId:String(job.id),attemptNo:Number(job.attempt_count)+1,cid,message:reminderText(a)};
@@ -65,6 +74,7 @@ export async function dispatchOne(provider:NotificationProvider=new MophAlertPro
 export async function retryNotification(jobId:string,reason:string,acknowledgeUnknown:boolean,actor:Actor) {
   return transaction(async db=>{
     const [job]=await rows<RecordRow>('SELECT * FROM notification_jobs WHERE id=? FOR UPDATE',[jobId],db);ensure(job,'ไม่พบข้อความ',404);
+    ensure(job.hosxp_oapp_id,'นัดเดิมในเว็บหยุดใช้แล้ว กรุณาจัดการนัดใน HOSxP',410);
     ensure(['FAILED','BLOCKED','UNKNOWN','DRY_RUN'].includes(String(job.status)),'สถานะนี้สั่งส่งซ้ำไม่ได้',409);
     ensure(job.status!=='UNKNOWN'||acknowledgeUnknown,'ต้องยืนยันว่าตรวจสอบแล้วและยอมรับโอกาสส่งซ้ำ');
     ensure(Number(job.attempt_count)<3,'ครบ 3 ครั้งแล้ว ต้องตรวจแก้สาเหตุก่อน');

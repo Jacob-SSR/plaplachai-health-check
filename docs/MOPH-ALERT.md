@@ -1,3 +1,7 @@
+# วันนัดจาก HOSxP
+
+รุ่นปัจจุบันใช้ worker อ่าน oapp และแจ้งเมื่อตรวจพบนัดใหม่/เปลี่ยนแปลงตาม [HOSXP.md](HOSXP.md) แทนการสร้างนัดในเว็บและส่งตามกฎวันล่วงหน้า ส่วน CID, provider, LIVE/DRY_RUN, ปุ่มทดสอบ และการจัดการ UNKNOWN ใช้กลไกเดิม รายละเอียดกฎวันล่วงหน้าด้านล่างเป็นประวัติระบบก่อนเปลี่ยนแหล่งนัด
+
 # MOPH Alert 3.1
 
 อ่านเอกสารที่ผู้ใช้ให้มา: API Alert Free Form JSON 3.1.pdf, API Alert Template 3.1.pdf, Postman ทั้งสองแบบ และคู่มือ MOPH Alert สำหรับ Admin. รุ่นนี้เลือก Free Form text หนึ่ง bubble จึงไม่ขึ้นกับ template UUID ของแต่ละหน่วยบริการ

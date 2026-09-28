@@ -18,13 +18,14 @@ Base path `/api/v1`. ทุก endpoint ต้องมี session cookie ยก
 | PATCH plans/:id | plan.write | name,location,start,end,status,version,reason; ห้ามทำให้นัดเดิมอยู่นอกช่วง |
 | GET members?year=id / POST members | employee.read / roster.write | ทะเบียนรายปี / employeeId,planId,snapshotDate,rounds,serviceIds |
 | GET appointments / GET calendar | appointment.read + scope | filter query; appointments แบ่งหน้าละ 50, calendar สูงสุด 10,000 |
-| POST appointments | appointment.write + scope | memberId,planId,groupId,roundNo,attemptNo,date,time,location,queueLabel,serviceIds,note |
-| PATCH appointments/:id | appointment.write + scope | input เช่น POST + version,reason; ไม่เปลี่ยน member/plan/group/round/attempt |
-| PATCH appointments/:id/status | attendance.write + scope | status,version,reason; ลำดับใน ARCHITECTURE |
+| GET hosxp/oapp | appointment.read + employee.read + scope | from/to (ค.ศ.) อ่าน oapp เฉพาะ CID ในทะเบียนเดิม ไม่มี CID ในผลตอบกลับ |
+| POST appointments | appointment.write | 410 HOSXP_APPOINTMENTS_ONLY ให้ลงนัดใน HOSxP |
+| PATCH appointments/:id | appointment.write | 410 HOSXP_APPOINTMENTS_ONLY |
+| PATCH appointments/:id/status | appointment.write | 410 HOSXP_APPOINTMENTS_ONLY |
 | GET reports | report.read + scope | summary,departments,daily,services,definitions; ไม่มีชื่อ/CID รายบุคคล |
-| GET imports/template?year=id&plan=id | import.execute | .xlsx จาก master/roster ปัจจุบัน |
-| POST imports/validate | import.execute | multipart file,year,plan; batchId,digest,total,valid,invalid,errors,preview |
-| POST imports/:batchId/confirm | import.execute + owner | {digest}; transaction + idempotent confirmation |
+| GET imports/template | appointment.write | 410 HOSXP_APPOINTMENTS_ONLY |
+| POST imports/validate | appointment.write | 410 HOSXP_APPOINTMENTS_ONLY |
+| POST imports/:batchId/confirm | appointment.write | 410 HOSXP_APPOINTMENTS_ONLY |
 | GET imports | import.execute | 100 batch ล่าสุดของผู้ใช้เอง |
 | GET exports/appointments | export.execute + scope | Excel นัด,รายงาน,ตัวกรอง |
 | GET/PATCH notification-settings | notification.manage | enabled,mode,version,days:number[],confirmLive |
