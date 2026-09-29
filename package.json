@@ -12,6 +12,7 @@
     "test:integration": "node --import tsx --test --test-concurrency=1 tests/integration/*.test.ts",
     "test:e2e": "playwright test",
     "db:migrate": "tsx scripts/migrate.ts",
+    "hosxp:sync": "tsx scripts/sync-hosxp.ts",
     "db:bootstrap": "tsx scripts/bootstrap.ts",
     "worker": "tsx workers/notifications.ts",
     "worker:once": "tsx workers/notifications.ts --once",

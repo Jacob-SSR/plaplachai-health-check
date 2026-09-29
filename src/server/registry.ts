@@ -49,10 +49,10 @@ export async function saveMaster(kind:string,recordId:number|undefined,body:unkn
 const employeeSchema=z.object({employeeCode:code,prefix:z.string().trim().max(30).default(''),firstName:text(100),lastName:text(100),departmentId:id,positionId:id,levelId:id.nullable().default(null),employmentTypeId:id.nullable().default(null),validFrom:date});
 export async function employees(actor:Actor) {
   const scope=scopeSql(actor,'a.department_id');
-  return rows(`SELECT e.id,e.employee_code,e.prefix,e.first_name,e.last_name,e.active,e.version,e.notification_enabled,
+  return rows(`SELECT e.id,e.employee_code,e.prefix,e.first_name,e.last_name,e.active,e.version,e.notification_enabled,e.hosxp_doctor_code,e.hosxp_doctor_name,
    (e.cid_ciphertext IS NOT NULL) has_cid,a.department_id,a.position_id,a.level_id,a.employment_type_id,a.valid_from,d.name department_name,p.name position_name,parent.name group_name
-   FROM employees e JOIN employee_assignments a ON a.employee_id=e.id AND a.valid_to IS NULL
-   JOIN departments d ON d.id=a.department_id LEFT JOIN departments parent ON parent.id=d.parent_id JOIN positions p ON p.id=a.position_id WHERE ${scope.sql} ORDER BY e.first_name,e.last_name`,scope.params);
+   FROM employees e LEFT JOIN employee_assignments a ON a.employee_id=e.id AND a.valid_to IS NULL
+   LEFT JOIN departments d ON d.id=a.department_id LEFT JOIN departments parent ON parent.id=d.parent_id LEFT JOIN positions p ON p.id=a.position_id WHERE ${scope.sql} ORDER BY e.first_name,e.last_name`,scope.params);
 }
 export async function createEmployee(body:unknown,actor:Actor) {
   const input=employeeSchema.parse(body);
@@ -73,6 +73,7 @@ export async function updateEmployee(employeeId:number,body:unknown,actor:Actor)
   return transaction(async db=>{
     const [old]=await rows<RecordRow>('SELECT * FROM employees WHERE id=? FOR UPDATE',[employeeId],db);ensure(old,'ไม่พบบุคลากร',404);
     ensure(Number(old.version)===input.version,'ข้อมูลเปลี่ยนแล้ว กรุณาโหลดใหม่',409);ensure(old.employee_code===input.employeeCode,'รหัสบุคลากรเปลี่ยนไม่ได้');
+    ensure(!old.hosxp_doctor_code,'แก้ไขข้อมูลบุคลากรที่ HOSxP',410,'HOSXP_PERSONNEL_ONLY');
     const [a]=await rows<RecordRow>('SELECT * FROM employee_assignments WHERE employee_id=? AND valid_to IS NULL FOR UPDATE',[employeeId],db);
     const changed=Number(a.department_id)!==input.departmentId||Number(a.position_id)!==input.positionId||(a.level_id==null?null:Number(a.level_id))!==input.levelId||(a.employment_type_id==null?null:Number(a.employment_type_id))!==input.employmentTypeId;
     if(changed){ensure(input.validFrom>String(a.valid_from),'วันย้ายต้องหลังวันเริ่มประวัติเดิม');await execute('UPDATE employee_assignments SET valid_to=? WHERE id=?',[input.validFrom,a.id],db);await insertAssignment(employeeId,input,db);}
@@ -84,7 +85,8 @@ export async function setRecipient(employeeId:number,body:unknown,actor:Actor) {
   const input=z.object({cid:z.string().optional(),enabled:z.boolean(),verified:z.boolean().default(false)}).parse(body);
   if(input.cid){ensure(validCid(input.cid),'เลขบัตรประชาชนไม่ถูกต้อง');ensure(input.verified,'กรุณายืนยันว่าตรวจสอบเลขผู้รับกับเจ้าของข้อมูลแล้ว');}
   return transaction(async db=>{
-    const [e]=await rows<RecordRow>('SELECT id,cid_ciphertext,cid_verified_at FROM employees WHERE id=? FOR UPDATE',[employeeId],db);ensure(e,'ไม่พบบุคลากร',404);
+    const [e]=await rows<RecordRow>('SELECT id,cid_ciphertext,cid_verified_at,hosxp_doctor_code FROM employees WHERE id=? FOR UPDATE',[employeeId],db);ensure(e,'ไม่พบบุคลากร',404);
+    ensure(!input.cid || !e.hosxp_doctor_code,'แก้ไข CID บุคลากรที่ HOSxP',410,'HOSXP_PERSONNEL_ONLY');
     ensure(!input.enabled || input.cid || (e.cid_ciphertext&&e.cid_verified_at),'ต้องตรวจสอบเลขผู้รับก่อนเปิดการแจ้งเตือน');
     if(input.cid) await execute('UPDATE employees SET cid_ciphertext=?,cid_hmac=?,cid_verified_at=UTC_TIMESTAMP(6) WHERE id=?',[encrypt(input.cid),cidHash(input.cid),employeeId],db);
     await execute('UPDATE employees SET notification_enabled=?,version=version+1 WHERE id=?',[input.enabled,employeeId],db);

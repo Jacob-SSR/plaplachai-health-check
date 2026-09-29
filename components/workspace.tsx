@@ -11,7 +11,7 @@ import { HosxpSchedule } from './hosxp-schedule';
 import { Reports,Metrics,type Report } from './reports';
 import { Notifications } from './notifications';
 import { Table,s,thaiDate,type Item,type Api } from './ui';
-const nav=[{key:'schedule',title:'นัดหมายจาก HOSxP',icon:CalendarDays,permission:'appointment.read'},{key:'roster',title:'ผู้มีสิทธิ์ประจำปี',icon:ClipboardList,permission:'employee.read'},{key:'personnel',title:'บุคลากร',icon:Users,permission:'employee.read'},{key:'reports',title:'รายงานข้อมูลเดิม',icon:ChartNoAxesCombined,permission:'report.read'},{key:'notifications',title:'แจ้งเตือน',icon:Bell,permission:'notification.manage'},{key:'settings',title:'ข้อมูลตั้งต้น',icon:Settings,permission:'master.write'},{key:'users',title:'บัญชีผู้ใช้',icon:ShieldCheck,permission:'user.manage'},{key:'audit',title:'ประวัติการใช้งาน',icon:History,permission:'audit.read'}];
+const nav=[{key:'schedule',title:'นัดหมายจาก HOSxP',icon:CalendarDays,permission:'appointment.read'},{key:'personnel',title:'บุคลากร',icon:Users,permission:'employee.read'},{key:'reports',title:'รายงานข้อมูลเดิม',icon:ChartNoAxesCombined,permission:'report.read'},{key:'notifications',title:'แจ้งเตือน',icon:Bell,permission:'notification.manage'},{key:'settings',title:'ข้อมูลตั้งต้น',icon:Settings,permission:'master.write'},{key:'users',title:'บัญชีผู้ใช้',icon:ShieldCheck,permission:'user.manage'},{key:'audit',title:'ประวัติการใช้งาน',icon:History,permission:'audit.read'}];
 type Loaded={masters:Masters;employees:Item[];members:Item[];report?:Report;users:Item[];jobs:Item[];settings?:Item;audit:Item[]};
 const empty:Loaded={masters:{},employees:[],members:[],users:[],jobs:[],audit:[]};
 export function Workspace({actor}:{actor:Actor}){
@@ -39,7 +39,7 @@ export function Workspace({actor}:{actor:Actor}){
  {year&&<div className="period"><span>{thaiDate(year.start_date)} – {thaiDate(year.end_date)}</span><span>{year.status==='OPEN'?'เปิดบันทึกข้อมูล':'ปิดปีงบประมาณแล้ว'}</span></div>}
  {error&&<div role="alert" className="error">{error} <button onClick={reload}>ลองอีกครั้ง</button></div>}
  {busy&&<div className="loading" role="status">กำลังโหลดข้อมูล…</div>}
- {!error&&<>{!year&&tab!=='schedule'&&tab!=='settings'&&tab!=='users'&&tab!=='audit'&&tab!=='notifications'?<section className="surface welcome"><ClipboardList size={42}/><h2>เริ่มต้นวางแผนตรวจสุขภาพ</h2><p>ระบบเตรียมปีงบประมาณอัตโนมัติเมื่ออัปเดตฐานข้อมูลและเริ่ม worker<br/>ทันตกรรม แผนไทย กายภาพ และตรวจเลือด พร้อมใช้ทุกปี</p>{canManage&&<button className="primary" onClick={()=>setTab('settings')}>ตั้งค่าข้อมูลเริ่มต้น</button>}</section>:<>
+ {!error&&<>{!year&&tab!=='schedule'&&tab!=='personnel'&&tab!=='settings'&&tab!=='users'&&tab!=='audit'&&tab!=='notifications'?<section className="surface welcome"><ClipboardList size={42}/><h2>เริ่มต้นวางแผนตรวจสุขภาพ</h2><p>ระบบเตรียมปีงบประมาณอัตโนมัติเมื่ออัปเดตฐานข้อมูลและเริ่ม worker<br/>ทันตกรรม แผนไทย กายภาพ และตรวจเลือด พร้อมใช้ทุกปี</p>{canManage&&<button className="primary" onClick={()=>setTab('settings')}>ตั้งค่าข้อมูลเริ่มต้น</button>}</section>:<>
  {tab==='reports'&&<Metrics report={data.report}/>}
  {tab==='schedule'&&<HosxpSchedule api={api}/>}
  {['personnel','roster','settings','users'].includes(tab)&&<Registry key={`${tab}-${yearId}`} tab={tab} masters={data.masters} employees={data.employees} members={data.members} year={year} api={api} reload={reload} canManage={canManage} users={data.users}/>}

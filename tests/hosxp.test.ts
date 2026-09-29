@@ -26,6 +26,7 @@ test('oapp reads only existing recipients using bound CID values and removes ide
     calls++;
     assert.match(sql, /FROM oapp o JOIN patient p ON p.hn=o.hn/);
     assert.match(sql, /p.cid IN \(\?\)/);
+    assert.match(sql, /personnel.cid=p.cid AND personnel.active='Y'/);
     assert.ok(!sql.includes(recipient.cid));
     assert.deepEqual(values, [recipient.cid, range.from, range.to,'033','006','019','023']);
     return [appointment, { ...appointment, oapp_id: '2', recipient_cid: 'unregistered' }];

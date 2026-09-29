@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { HosxpPersonnel, HosxpRooms } from './hosxp-registry';
 import { Plus } from 'lucide-react';
 import { AnnualPlan,ServiceLegend } from './annual-plan';
 import { PersonnelImport } from './personnel-import';
@@ -13,6 +14,8 @@ export function Registry({tab,masters,employees,members,year,api,reload,canManag
  const save=async(path:string,method:string,body:unknown)=>{await api(path,method,body);reload();};
  const plans=(masters.plans??[]).filter(p=>n(p.fiscal_year_id)===year?.id);
  const titles:Record<string,string>={personnel:'ทะเบียนบุคลากร',roster:'ผู้มีสิทธิ์ตรวจประจำปี',settings:'ข้อมูลตั้งต้น',users:'บัญชีผู้ใช้งาน'};
+ if(tab==='settings')return <HosxpRooms/>;
+ if(tab==='personnel')return <HosxpPersonnel employees={employees} api={api} reload={reload} canManage={canManage}/>;
  return <><div className="section-head"><div><h2>{titles[tab]}</h2><p className="muted">{tab==='roster'?`ทะเบียนและรายการที่ต้องตรวจ ปีงบประมาณ ${s(year?.fiscal_year)}`:'ข้อมูลสำหรับวางแผนและจัดการนัดตรวจ'}</p></div>{canManage&&<button className="primary" onClick={()=>open(tab==='personnel'?'employee':tab==='roster'?'enroll':tab==='users'?'user':'master')}><Plus size={18}/>เพิ่ม{tab==='personnel'?'บุคลากร':tab==='roster'?'ผู้มีสิทธิ์':tab==='users'?'บัญชี':masterNames[kind]}</button>}</div>
  {tab==='personnel'&&canManage&&<div className="notice"><strong>มีข้อมูลบุคลากรอยู่แล้ว?</strong><p>โหลดรายชื่อ หน่วยงาน กลุ่มงาน และตำแหน่งจากไฟล์ที่เตรียมไว้ได้ทั้งชุด</p><button onClick={()=>open('personnelImport')}>นำเข้าบุคลากรทั้งชุด</button></div>}
  {form==='personnelImport'&&<PersonnelImport api={api} reload={reload} onClose={close}/>}

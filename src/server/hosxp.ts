@@ -5,6 +5,7 @@ import { decrypt, cidHash } from './crypto';
 import { scopeSql, type Actor } from './auth';
 import { addDays, bangkokNow, date, ensure, validCid, fiscalYearForDate } from '../domain/validation';
 import { HOSXP_ROOMS,hosxpRoom } from '../domain/hosxp';
+import { syncDoctorPersonnel, type DoctorPerson } from './hosxp-personnel';
 
 const globalHosxp = globalThis as unknown as { hosxpPool?: mysql.Pool };
 function hosxpPool() {
@@ -69,6 +70,7 @@ export async function readOappForRecipients(
       FROM oapp o JOIN patient p ON p.hn=o.hn
       LEFT JOIN doctor d ON d.code=o.doctor LEFT JOIN kskdepartment k ON k.depcode=o.depcode
       WHERE p.cid IN (${batch.map(() => '?').join(',')}) AND o.nextdate BETWEEN ? AND ?
+      AND EXISTS (SELECT 1 FROM doctor personnel WHERE personnel.cid=p.cid AND personnel.active='Y')
       AND o.depcode IN (${roomCodes.map(()=>'?').join(',')}) ${filters.doctor?'AND o.doctor=?':''}
       ORDER BY o.nextdate,o.nexttime,o.oapp_id LIMIT 1001`, [...batch, range.from, range.to,...roomCodes,...(filters.doctor?[filters.doctor]:[])]);
     ensure(appointments.length <= 1000, 'ข้อมูลนัดมีจำนวนมาก กรุณาเลือกช่วงวันที่สั้นลง', 422);
@@ -96,13 +98,17 @@ export async function readOappForRecipients(
 
 export async function getOapp(params: URLSearchParams, actor?: Actor) {
   const range = oappRange(params);
-  const scope = actor ? scopeSql(actor, 'assignment.department_id') : { sql: '1=1', params: [] };
+  const scope = actor && !actor.roles.includes('ADMIN') ? scopeSql(actor, 'assignment.department_id') : null;
+  const personnel = params.get('personnel');
+  if (personnel) z.string().min(1).max(40).parse(personnel);
   const employees = await rows<{ id: number; display_name: string; cid_ciphertext: string; cid_hmac: string }>(`
-    SELECT e.id,CONCAT(e.prefix,e.first_name,' ',e.last_name) display_name,e.cid_ciphertext,e.cid_hmac
+    SELECT e.id,COALESCE(e.hosxp_doctor_name,CONCAT(e.prefix,e.first_name,' ',e.last_name)) display_name,e.cid_ciphertext,e.cid_hmac
     FROM employees e WHERE e.active=1 AND e.cid_verified_at IS NOT NULL AND e.cid_ciphertext IS NOT NULL
-    AND EXISTS (SELECT 1 FROM employee_assignments assignment WHERE assignment.employee_id=e.id
+    AND e.hosxp_doctor_code IS NOT NULL
+    ${personnel ? 'AND e.hosxp_doctor_code=?' : ''}
+    ${scope ? `AND EXISTS (SELECT 1 FROM employee_assignments assignment WHERE assignment.employee_id=e.id
       AND assignment.valid_from<=? AND (assignment.valid_to IS NULL OR assignment.valid_to>?)
-      AND ${scope.sql})`, [bangkokNow().day, bangkokNow().day, ...scope.params]);
+      AND ${scope.sql})` : ''}`, [...(personnel ? [personnel] : []), ...(scope ? [bangkokNow().day, bangkokNow().day, ...scope.params] : [])]);
   const recipients = employees.map(employee => {
     const cid = decrypt(employee.cid_ciphertext);
     ensure(cidHash(cid) === employee.cid_hmac, 'ข้อมูล CID ในทะเบียนบุคลากรไม่ตรงกัน', 503);
@@ -116,10 +122,21 @@ export async function getOapp(params: URLSearchParams, actor?: Actor) {
   return { source: 'HOSXP', ...range, data, total: data.length };
 }
 
-export async function hosxpOptions() {
-  // Only the provider code/name are exposed; doctor CID, dates of birth and tokens stay in HOSxP.
-  const [doctors]=await hosxpPool().execute<RowDataPacket[]>({sql:"SELECT code,name FROM doctor WHERE active='Y' ORDER BY name",timeout:15000});
-  return {rooms:HOSXP_ROOMS,doctors:doctors.map(row=>({code:String(row.code),name:String(row.name)}))};
+export async function syncHosxpPersonnel() {
+  const [people] = await hosxpPool().execute<RowDataPacket[]>({
+    sql:'SELECT code,name,cid,active FROM doctor ORDER BY code', timeout:15000,
+  });
+  return syncDoctorPersonnel(people as DoctorPerson[]);
+}
+
+export async function hosxpOptions(actor: Actor) {
+  const scope = scopeSql(actor, 'assignment.department_id');
+  const people = await rows<{code:string;name:string}>(`SELECT e.hosxp_doctor_code code,e.hosxp_doctor_name name
+    FROM employees e WHERE e.hosxp_doctor_code IS NOT NULL AND e.active=1
+    ${actor.roles.includes('ADMIN') ? '' : `AND EXISTS (SELECT 1 FROM employee_assignments assignment
+      WHERE assignment.employee_id=e.id AND assignment.valid_to IS NULL AND ${scope.sql})`}
+    ORDER BY e.hosxp_doctor_name`, actor.roles.includes('ADMIN') ? [] : scope.params);
+  return {rooms:HOSXP_ROOMS,personnel:people};
 }
 
 export async function closeHosxpPool() {

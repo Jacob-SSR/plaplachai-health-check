@@ -4,6 +4,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { PublicCalendar } from '../components/public-calendar';
 import { bangkokNow,fiscalYearForDate } from '../src/domain/validation';
+import { HosxpRooms,HosxpPersonnel } from '../components/hosxp-registry';
 
 test('first render already includes every day and four room filters without any API response or fiscal-year rows',()=>{
   const html=renderToStaticMarkup(createElement(PublicCalendar,{account:null}));
@@ -14,4 +15,17 @@ test('first render already includes every day and four room filters without any 
   assert.ok(!html.includes('เลือกปีงบประมาณ'));assert.ok(!html.includes('ยังไม่มีปีงบประมาณ'));
   assert.ok(html.includes(`ปีงบประมาณ ${fiscalYearForDate(`${month}-01`)} · คำนวณอัตโนมัติ`));
   for(const room of ['กายภาพบำบัด','LAB','ทันตกรรม','แพทย์แผนไทย'])assert.ok(html.includes(room));
+});
+
+test('rooms and personnel do not require manual setup or fiscal-year rows',()=>{
+  const rooms=renderToStaticMarkup(createElement(HosxpRooms));
+  for(const code of ['033','006','019','023'])assert.ok(rooms.includes(code));
+  assert.ok(!rooms.includes('<form'));assert.ok(!rooms.includes('เพิ่มหน่วยงาน'));
+  const people=renderToStaticMarkup(createElement(HosxpPersonnel,{employees:[
+    {id:1,hosxp_doctor_code:'D1',hosxp_doctor_name:'บุคลากรสมมติที่ยังทำงาน',active:1,has_cid:1},
+    {id:2,hosxp_doctor_code:'D2',hosxp_doctor_name:'บุคลากรสมมติที่พ้นสภาพ',active:0,has_cid:1},
+  ],api:async()=>({}),reload:()=>{},canManage:true}));
+  assert.ok(people.includes('บุคลากรสมมติที่ยังทำงาน'));
+  assert.ok(!people.includes('บุคลากรสมมติที่พ้นสภาพ'));
+  assert.ok(!people.includes('เพิ่มบุคลากร'));
 });

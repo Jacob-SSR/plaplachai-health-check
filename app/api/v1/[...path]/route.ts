@@ -4,7 +4,7 @@ import { authenticate,login,logout,requirePermission,scopeSql } from '@/src/serv
 import { rows,execute,transaction } from '@/src/server/db';
 import { jsonBody,boundedBody,errorResponse,download } from '@/src/server/http';
 import { ensure,id,text } from '@/src/domain/validation';
-import { masters,saveMaster,employees,createEmployee,updateEmployee,setRecipient,createPlan,updatePlan,enroll,enrollMany,members,saveUser } from '@/src/server/registry';
+import { masters,employees,createEmployee,updateEmployee,setRecipient,createPlan,updatePlan,enroll,enrollMany,members,saveUser } from '@/src/server/registry';
 import { listAppointments } from '@/src/server/appointments';
 import { reports } from '@/src/server/reports';
 import { exportAppointments } from '@/src/server/excel';
@@ -13,7 +13,7 @@ import { audit } from '@/src/server/audit';
 import { publicCalendar } from '@/src/server/public-calendar';
 import { sendTestNotification } from '@/src/server/notification-test';
 import { importPersonnelSeed } from '@/src/server/personnel-seed';
-import { getOapp,hosxpOptions } from '@/src/server/hosxp';
+import { getOapp,hosxpOptions,syncHosxpPersonnel } from '@/src/server/hosxp';
 
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -34,8 +34,8 @@ async function handle(req:NextRequest,{params}:{params:Promise<{path:string[]}>}
     if(route==='me'&&method==='GET')result=actor;
     else if(route==='auth/logout'&&method==='POST')return await logout(req,actor);
     else if(route==='masters'&&method==='GET'){allow('master.read');result=await masters(actor);}
-    else if(path[0]==='masters'&&['POST','PATCH'].includes(method)){allow('master.write');result=await saveMaster(path[1],method==='PATCH'?id.parse(path[2]):undefined,await jsonBody(req),actor);}
-    else if(route==='employees'&&method==='GET'){allow('employee.read');result=await employees(actor);}
+    else if(path[0]==='masters'&&['POST','PATCH'].includes(method)){allow('master.write');ensure(false,'ใช้ห้องบริการจาก kskdepartment ของ HOSxP ไม่ต้องเพิ่มในเว็บ',410,'HOSXP_ROOMS_ONLY');}
+    else if(route==='employees'&&method==='GET'){allow('employee.read');await syncHosxpPersonnel();result=await employees(actor);}
     else if(route==='employees'&&method==='POST'){allow('employee.write');result=await createEmployee(await jsonBody(req),actor);}
     else if(route==='personnel-seed'&&method==='POST'){
       allow('employee.write');ensure(req.headers.get('content-type')?.includes('application/json'),'ต้องส่ง application/json',415);
@@ -50,8 +50,8 @@ async function handle(req:NextRequest,{params}:{params:Promise<{path:string[]}>}
     else if(route==='members'&&method==='POST'){allow('roster.write');result=await enroll(await jsonBody(req),actor);}
     else if(route==='members/bulk'&&method==='POST'){allow('roster.write');result=await enrollMany(await jsonBody(req),actor);}
     else if(route==='appointments'&&method==='GET'){allow('appointment.read');result=await listAppointments(url,actor);}
-    else if(route==='hosxp/options'&&method==='GET'){allow('appointment.read');allow('employee.read');result=await hosxpOptions();}
-    else if(route==='hosxp/oapp'&&method==='GET'){allow('appointment.read');allow('employee.read');result=await getOapp(url,actor);}
+    else if(route==='hosxp/options'&&method==='GET'){allow('appointment.read');allow('employee.read');await syncHosxpPersonnel();result=await hosxpOptions(actor);}
+    else if(route==='hosxp/oapp'&&method==='GET'){allow('appointment.read');allow('employee.read');await syncHosxpPersonnel();result=await getOapp(url,actor);}
     else if(route==='calendar'&&method==='GET'){allow('appointment.read');result=await listAppointments(url,actor,true);}
     else if(route==='reports'&&method==='GET'){allow('report.read');id.parse(url.get('year'));result=await reports(url,actor);}
     else if(route==='imports'&&method==='GET'){allow('import.execute');result=await rows('SELECT * FROM import_batches WHERE imported_by=? ORDER BY created_at DESC LIMIT 100',[actor.id]);}
@@ -73,7 +73,7 @@ async function handle(req:NextRequest,{params}:{params:Promise<{path:string[]}>}
       const currentScope=scopeSql(actor,'assignment.department_id');
       const hosxp=await rows(`SELECT j.*,CONCAT(e.prefix,e.first_name,' ',e.last_name) display_name,a.appointment_date,a.appointment_time,NULL days_before
         FROM notification_jobs j JOIN hosxp_appointments a ON a.oapp_id=j.hosxp_oapp_id JOIN employees e ON e.id=a.employee_id
-        WHERE EXISTS(SELECT 1 FROM employee_assignments assignment WHERE assignment.employee_id=e.id AND ${currentScope.sql})
+        WHERE ${actor.roles.includes('ADMIN')?'1=1':`EXISTS(SELECT 1 FROM employee_assignments assignment WHERE assignment.employee_id=e.id AND ${currentScope.sql})`}
         ORDER BY j.created_at DESC LIMIT 200`,currentScope.params);
       result=[...legacy,...hosxp].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).slice(0,200);
     }

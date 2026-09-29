@@ -3,6 +3,8 @@ import { actorFromToken,cookieName } from '@/src/server/auth';
 import { PublicCalendar } from '@/components/public-calendar';
 export const dynamic='force-dynamic';
 export default async function Home(){
-  const actor=await actorFromToken((await cookies()).get(cookieName)?.value).catch(error=>{if(error.status===401)return null;throw error;});
+  // Authentication failure must not hide the public calendar, even with an old cookie.
+  // Protected routes still authenticate independently; no personal data is rendered here.
+  const actor=await actorFromToken((await cookies()).get(cookieName)?.value).catch(()=>null);
   return <PublicCalendar account={actor?{admin:actor.roles.includes('ADMIN'),name:actor.displayName,csrf:actor.csrf}:null}/>;
 }

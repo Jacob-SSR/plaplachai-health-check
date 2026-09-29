@@ -25,7 +25,8 @@ export function PublicCalendar({account}:{account:Account}){
       catch(e){if(!controller.signal.aborted)setError(e instanceof Error?e.message:'โหลดนัดหมายไม่สำเร็จ');}
       finally{if(!controller.signal.aborted)setBusy(false);}
     }
-    void load();return()=>controller.abort();
+    void load();const timer=setInterval(()=>void load(),30000);
+    return()=>{controller.abort();clearInterval(timer);};
   },[query]);
   const first=new Date(`${month}-01T00:00:00Z`),fiscalYear=fiscalYearForDate(`${month}-01`);
   const days=new Date(Date.UTC(first.getUTCFullYear(),first.getUTCMonth()+1,0)).getUTCDate(),offset=(first.getUTCDay()+6)%7;
