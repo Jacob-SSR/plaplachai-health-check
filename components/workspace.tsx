@@ -5,19 +5,19 @@ import { useCallback,useEffect,useMemo,useState } from 'react';
 import { CalendarDays,Users,ClipboardList,ChartNoAxesCombined,Bell,ShieldCheck,History,LogOut,RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import type { Actor } from '@/src/server/auth';
-import { FiltersBar,type Masters,type Filters } from './schedule';
+import { type Masters,type Filters } from './schedule';
 import { Registry } from './registry';
 import { HosxpSchedule } from './hosxp-schedule';
-import { Reports,Metrics,type Report } from './reports';
+import { HosxpReport } from './hosxp-report';
 import { Notifications } from './notifications';
 import { Table,s,thaiDate,type Item,type Api } from './ui';
-const nav=[{key:'schedule',title:'นัดหมายจาก HOSxP',icon:CalendarDays,permission:'appointment.read'},{key:'personnel',title:'บุคลากร',icon:Users,permission:'employee.read'},{key:'reports',title:'รายงานข้อมูลเดิม',icon:ChartNoAxesCombined,permission:'report.read'},{key:'notifications',title:'แจ้งเตือน',icon:Bell,permission:'notification.manage'},{key:'users',title:'บัญชีผู้ใช้',icon:ShieldCheck,permission:'user.manage'},{key:'audit',title:'ประวัติการใช้งาน',icon:History,permission:'audit.read'}];
+const nav=[{key:'schedule',title:'นัดหมายจาก HOSxP',icon:CalendarDays,permission:'appointment.read'},{key:'personnel',title:'บุคลากร',icon:Users,permission:'employee.read'},{key:'reports',title:'รายงาน',icon:ChartNoAxesCombined,permission:'report.read'},{key:'notifications',title:'แจ้งเตือน',icon:Bell,permission:'notification.manage'},{key:'users',title:'บัญชีผู้ใช้',icon:ShieldCheck,permission:'user.manage'},{key:'audit',title:'ประวัติการใช้งาน',icon:History,permission:'audit.read'}];
 type Loaded={masters:Masters;employees:Item[];report?:Report;users:Item[];jobs:Item[];settings?:Item;audit:Item[]};
 const empty:Loaded={masters:{},employees:[],users:[],jobs:[],audit:[]};
 export function Workspace({actor}:{actor:Actor}){
  const router=useRouter();
  const allowed=nav.filter(v=>actor.permissions.includes(v.permission));
- const [tab,setTab]=useState(allowed[0]?.key??'reports'),[yearId,setYearId]=useState(''),[filters,setFilters]=useState<Filters>({}),[tick,setTick]=useState(0),[data,setData]=useState<Loaded>(empty),[busy,setBusy]=useState(true),[error,setError]=useState('');
+ const [tab,setTab]=useState(allowed[0]?.key??'reports'),[yearId,setYearId]=useState(''),[filters]=useState<Filters>({}),[tick,setTick]=useState(0),[data,setData]=useState<Loaded>(empty),[busy,setBusy]=useState(true),[error,setError]=useState('');
  const api:Api=useCallback(async(path,method='GET',body)=>{const r=await fetch(`/api/v1/${path}`,{method,cache:'no-store',headers:{...(body?{'Content-Type':'application/json'}:{}),'x-csrf-token':actor.csrf},...(body?{body:JSON.stringify(body)}:{})});if(r.status===401){router.replace('/login');router.refresh();throw Error('กรุณาเข้าสู่ระบบใหม่');}const b=await r.json();if(!r.ok)throw Error(b.message+(b.fieldErrors?': '+b.fieldErrors.map((v:{field:string;message:string})=>`${v.field} ${v.message}`).join(' · '):''));return b;},[actor.csrf,router]);
  const reload=useCallback(()=>setTick(t=>t+1),[]);
  const query=useMemo(()=>new URLSearchParams({year:yearId,...Object.fromEntries(Object.entries(filters).filter(([,v])=>v))}).toString(),[yearId,filters]);
@@ -28,7 +28,7 @@ export function Workspace({actor}:{actor:Actor}){
   const can=(p:string)=>actor.permissions.includes(p);
   const [employees,report,users,jobs,settings,audit]=await Promise.all([
    ['personnel','notifications'].includes(tab)&&can('employee.read')?api('employees'):[],
-   yearId&&tab==='reports'&&can('report.read')?api(`reports?${query}`):undefined,
+   undefined,
    tab==='users'?api('users'):[],tab==='notifications'?api('notifications'):[],
    tab==='notifications'?api('notification-settings'):undefined,tab==='audit'?api('audit'):[]]);
   if(alive)setData({masters,employees:employees as Item[],report:report as Report|undefined,users:users as Item[],jobs:jobs as Item[],settings:settings as Item|undefined,audit:audit as Item[]});
@@ -38,11 +38,10 @@ export function Workspace({actor}:{actor:Actor}){
  {year&&<div className="period"><span>{thaiDate(year.start_date)} – {thaiDate(year.end_date)}</span><span>{year.status==='OPEN'?'เปิดบันทึกข้อมูล':'ปิดปีงบประมาณแล้ว'}</span></div>}
  {error&&<div role="alert" className="error">{error} <button onClick={reload}>ลองอีกครั้ง</button></div>}
  {busy&&<div className="loading" role="status">กำลังโหลดข้อมูล…</div>}
- {!error&&<>{!year&&tab==='reports'?<section className="surface welcome"><ClipboardList size={42}/><h2>ยังไม่มีรายงานของปีงบประมาณนี้</h2><p>ดูวันนัดปัจจุบันที่เมนู นัดหมายจาก HOSxP</p></section>:<>
- {tab==='reports'&&<Metrics report={data.report}/>}
+ {!error&&<>{false?<section className="surface welcome"><ClipboardList size={42}/><h2>ยังไม่มีรายงานของปีงบประมาณนี้</h2><p>ดูวันนัดปัจจุบันที่เมนู นัดหมายจาก HOSxP</p></section>:<>
+ {tab==='reports'&&<HosxpReport api={api} canExport={actor.permissions.includes('export.execute')}/>}
  {tab==='schedule'&&<HosxpSchedule api={api}/>}
  {['personnel','users'].includes(tab)&&<Registry key={tab} tab={tab} masters={data.masters} employees={data.employees} api={api} reload={reload} canManage={canManage} users={data.users}/>}
- {tab==='reports'&&data.report&&<><p className="notice">รายงานประวัติการตรวจที่บันทึกไว้ในระบบเดิม ดูวันนัดปัจจุบันที่เมนู นัดหมายจาก HOSxP</p><div className="surface"><FiltersBar masters={data.masters} filters={filters} setFilters={setFilters}/></div><Reports report={data.report} query={query} canExport={actor.permissions.includes('export.execute')}/></>}
  {tab==='notifications'&&data.settings&&<Notifications employees={data.employees} jobs={data.jobs} settings={data.settings} api={api} reload={reload}/>}
  {tab==='audit'&&<><div className="section-head"><div><h2>ประวัติการใช้งาน</h2><p className="muted">200 เหตุการณ์ล่าสุด · เวลา UTC</p></div></div><div className="surface"><Table headers={['เวลา UTC','ผู้ดำเนินการ','การกระทำ','รายการอ้างอิง','รายละเอียด']} empty={!data.audit.length}>{data.audit.map(a=><tr key={a.id}><td>{s(a.created_at)}</td><td>{s(a.actor)||'Worker'}</td><td>{s(a.action)}</td><td>{s(a.entity_type)} #{s(a.entity_id)}</td><td className="audit-detail">{JSON.stringify(a.changes)}</td></tr>)}</Table></div></>}
  </>}</>}

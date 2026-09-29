@@ -14,7 +14,8 @@ export function hosxpFingerprint(a: SourceAppointment) {
 }
 export function activeHosxpStatus(status: unknown) {
   // NULL and 1 are normal appointments in HOSxP. Other installations can configure their active IDs.
-  const accepted = (process.env.HOSXP_ACTIVE_STATUS_IDS ?? 'NULL,1').split(',').map(s => s.trim());
+  // Always accepted, even when an older .env still says HOSXP_ACTIVE_STATUS_IDS=NULL.
+  const accepted = ['NULL', '1', ...(process.env.HOSXP_ACTIVE_STATUS_IDS ?? '').split(',').map(s => s.trim())];
   return accepted.includes(status == null ? 'NULL' : String(status));
 }
 export function futureHosxpAppointment(date: string, time: string | null, now = new Date()) {

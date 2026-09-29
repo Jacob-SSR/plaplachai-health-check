@@ -6,8 +6,7 @@ import { jsonBody,errorResponse,download } from '@/src/server/http';
 import { ensure,id,text } from '@/src/domain/validation';
 import { masters,employees,setRecipient,saveUser } from '@/src/server/registry';
 import { listAppointments } from '@/src/server/appointments';
-import { reports } from '@/src/server/reports';
-import { exportAppointments } from '@/src/server/excel';
+import { hosxpReport,hosxpReportExcel } from '@/src/server/hosxp-report';
 import { notificationSettings,retryNotification,reminderText } from '@/src/server/notifications';
 import { audit } from '@/src/server/audit';
 import { publicCalendar } from '@/src/server/public-calendar';
@@ -44,9 +43,9 @@ async function handle(req:NextRequest,{params}:{params:Promise<{path:string[]}>}
     else if(route==='hosxp/options'&&method==='GET'){allow('appointment.read');allow('employee.read');await syncHosxpPersonnel();result=await hosxpOptions(actor);}
     else if(route==='hosxp/oapp'&&method==='GET'){allow('appointment.read');allow('employee.read');await syncHosxpPersonnel();result=await getOapp(url,actor);}
     else if(route==='calendar'&&method==='GET'){allow('appointment.read');result=await listAppointments(url,actor,true);}
-    else if(route==='reports'&&method==='GET'){allow('report.read');id.parse(url.get('year'));result=await reports(url,actor);}
+    else if(route==='reports'&&method==='GET'){allow('report.read');await syncHosxpPersonnel();result=await hosxpReport(url,actor);}
     else if(route==='imports'&&method==='GET'){allow('import.execute');result=await rows('SELECT * FROM import_batches WHERE imported_by=? ORDER BY created_at DESC LIMIT 100',[actor.id]);}
-    else if(route==='exports/appointments'&&method==='GET'){allow('export.execute');return download(await exportAppointments(url,actor),'ppc-appointments.xlsx');}
+    else if(route==='exports/appointments'&&method==='GET'){allow('report.read');allow('export.execute');await syncHosxpPersonnel();const file=await hosxpReportExcel(url,actor);await transaction(db=>audit(db,actor.id,'EXPORT','hosxp_report',null,{from:url.get('from'),to:url.get('to')}));return download(file,'hosxp-appointments.xlsx');}
     else if(route==='notification-settings'&&method==='GET'){allow('notification.manage');result=await notificationSettings();}
     else if(route==='notification-settings'&&method==='PATCH'){
       allow('notification.manage');const input=z.object({enabled:z.boolean(),mode:z.enum(['DRY_RUN','LIVE']),version:id,days:z.array(z.number().int().min(0).max(30)).max(10),confirmLive:z.boolean().default(false)}).parse(await jsonBody(req));

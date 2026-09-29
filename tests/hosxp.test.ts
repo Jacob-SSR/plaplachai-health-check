@@ -5,6 +5,7 @@ import { hosxpFingerprint, activeHosxpStatus, futureHosxpAppointment } from '../
 import { reminderText } from '../src/server/notifications';
 import { fiscalYearForDate } from '../src/domain/validation';
 import { calendarPeriod } from '../src/server/public-calendar';
+import { reportStatus } from '../src/server/hosxp-report';
 
 const range = { from: '2026-10-01', to: '2026-10-31' };
 const appointment = { oapp_id: '9007199254740993', personnel_code: 'S001', personnel_name: 'บุคลากรสมมติ',
@@ -70,8 +71,10 @@ test('unknown source statuses do not send and missing time is not fabricated', (
     assert.equal(activeHosxpStatus(null), true);
     assert.equal(activeHosxpStatus(1), true);
     assert.equal(activeHosxpStatus(99), false);
-    process.env.HOSXP_ACTIVE_STATUS_IDS='NULL,1';
+    process.env.HOSXP_ACTIVE_STATUS_IDS='NULL';
     assert.equal(activeHosxpStatus(1), true);
+    process.env.HOSXP_ACTIVE_STATUS_IDS='NULL,5';
+    assert.equal(activeHosxpStatus(5), true);
   } finally {
     if(saved===undefined)delete process.env.HOSXP_ACTIVE_STATUS_IDS;else process.env.HOSXP_ACTIVE_STATUS_IDS=saved;
   }
@@ -108,4 +111,10 @@ test('only four rooms are returned and provider filters are bound SQL values',as
   const all=await readPersonnelOapp(range,{},async()=>[
     ...['033','006','019','023','000'].map(depcode=>({...appointment,oapp_id:depcode,depcode}))]);
   assert.equal(all.length,4);
+});
+
+test('report status comes from the HOSxP visit link and the appointment date',()=>{
+  assert.equal(reportStatus({visited:true,appointment_date:'2027-01-29'},'2026-09-29'),'ATTENDED');
+  assert.equal(reportStatus({visited:false,appointment_date:'2027-01-29'},'2026-09-29'),'PENDING');
+  assert.equal(reportStatus({visited:false,appointment_date:'2026-09-28'},'2026-09-29'),'MISSED');
 });
