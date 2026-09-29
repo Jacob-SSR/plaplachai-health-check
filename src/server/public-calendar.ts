@@ -24,16 +24,24 @@ export async function publicCalendar(params:URLSearchParams){
   }
   const department=params.get('department')?id.parse(params.get('department')):undefined;
   // Read HOSxP live so a new appointment shows without waiting for the worker.
-  let data:{appointment_date:string;appointment_time:string|null;depcode:string;location:string;source_status_id:unknown;personnel_code:string}[]=
-    (await readPersonnelOapp({from:`${month}-01`,to:next.toISOString().slice(0,10)},{room})).filter(a=>activeHosxpStatus(a.source_status_id));
+  let data=(await readPersonnelOapp({from:`${month}-01`,to:next.toISOString().slice(0,10)},{room})).filter(a=>activeHosxpStatus(a.source_status_id));
   if(department)data=await withEmployees(data,undefined,department);
-  const counts=new Map<string,{day:string;time:string;depcode:string;location:string;appointments:number}>();
-  for(const a of data){
-    const key=[a.appointment_date,a.appointment_time??'',a.depcode,a.location].join('|');
-    const slot=counts.get(key)??{day:a.appointment_date,time:a.appointment_time??'',depcode:a.depcode,location:a.location,appointments:0};
-    slot.appointments++;counts.set(key,slot);
-  }
-  const slots=[...counts.values()].sort((a,b)=>`${a.day} ${a.time}`.localeCompare(`${b.day} ${b.time}`))
-    .map(row=>({...row,group_id:Number(row.depcode),group_name:hosxpRoom(row.depcode)!.name}));
-  return {groups,departments,year,month,slots};
+  const groupsByName=await workGroups();
+  const appointments=data.map(a=>({oapp_id:a.oapp_id,day:a.appointment_date,time:a.appointment_time??'',
+    group_id:Number(a.depcode),group_name:a.room_name,name:a.display_name,
+    work_group:groupsByName.get(nameKey(a.display_name))??'',clinic_name:a.clinic_name??'',
+    doctor_name:a.doctor_name??'',location:a.location}))
+    .sort((a,b)=>`${a.day} ${a.time} ${a.name}`.localeCompare(`${b.day} ${b.time} ${b.name}`));
+  return {groups,departments,year,month,appointments};
+}
+
+const nameKey=(name:string)=>name.replace(/\s+/g,'');
+// กลุ่มงาน comes from the personnel file imported earlier (department parent), matched by name.
+async function workGroups(){
+  const people=await rows<{name:string;hosxp_name:string|null;work_group:string}>(`SELECT CONCAT(e.first_name,e.last_name) name,e.hosxp_doctor_name hosxp_name,
+    COALESCE(parent.name,d.name) work_group FROM employees e JOIN employee_assignments a ON a.employee_id=e.id AND a.valid_to IS NULL
+    JOIN departments d ON d.id=a.department_id LEFT JOIN departments parent ON parent.id=d.parent_id`);
+  const map=new Map<string,string>();
+  for(const p of people)for(const n of [p.name,p.hosxp_name])if(n&&!map.has(nameKey(n)))map.set(nameKey(n),p.work_group);
+  return map;
 }

@@ -28,7 +28,7 @@ type SourceRow = {
   nextdate: string; nexttime: string | null; clinic: string | null;
   depcode: string | null; contact_point: string | null;
   oapp_status_id: string | number | null; update_datetime: string | null;
-  doctor: string | null; doctor_name: string | null; department_name: string | null; visit_vn?: string | null;
+  doctor: string | null; doctor_name: string | null; department_name: string | null; visit_vn?: string | null; clinic_name?: string | null;
 };
 export type OappReader = (sql: string, values: string[]) => Promise<SourceRow[]>;
 const sourceReader: OappReader = async (sql, values) => {
@@ -53,11 +53,12 @@ export async function readPersonnelOapp(range: { from: string; to: string }, fil
   for (const value of [filters.doctor, filters.personnel, filters.oappId]) if (value) z.string().trim().min(1).max(40).parse(value);
   const roomCodes = filters.room ? [filters.room] : HOSXP_ROOMS.map(room => room.code);
   const rows = await read(`SELECT o.oapp_id,s.code personnel_code,s.name personnel_name,o.nextdate,o.nexttime,
-    o.clinic,o.depcode,o.contact_point,o.oapp_status_id,o.update_datetime,o.visit_vn,o.doctor,d.name doctor_name,k.department department_name
+    o.clinic,o.depcode,o.contact_point,o.oapp_status_id,o.update_datetime,o.visit_vn,o.doctor,d.name doctor_name,k.department department_name,c.name clinic_name
     FROM oapp o JOIN patient p ON p.hn=o.hn
     JOIN doctor s ON s.active='Y' AND (REPLACE(s.name,' ','')=REPLACE(CONCAT(TRIM(p.fname),TRIM(p.lname)),' ','')
       OR (TRIM(s.cid)<>'' AND s.cid=p.cid))
     LEFT JOIN doctor d ON d.code=o.doctor LEFT JOIN kskdepartment k ON k.depcode=o.depcode
+    LEFT JOIN clinic c ON c.clinic=o.clinic
     WHERE o.nextdate BETWEEN ? AND ? AND o.depcode IN (${roomCodes.map(() => '?').join(',')})
     ${filters.doctor ? 'AND o.doctor=?' : ''} ${filters.personnel ? 'AND s.code=?' : ''} ${filters.oappId ? 'AND o.oapp_id=?' : ''}
     ORDER BY o.nextdate,o.nexttime,o.oapp_id,s.code LIMIT 3001`,
@@ -73,7 +74,7 @@ export async function readPersonnelOapp(range: { from: string; to: string }, fil
       source: 'HOSXP' as const, oapp_id: oappId,
       personnel_code: String(row.personnel_code), display_name: String(row.personnel_name ?? ''),
       appointment_date: row.nextdate, appointment_time: row.nexttime,
-      clinic: row.clinic, depcode: room.code, location: row.contact_point ?? '',
+      clinic: row.clinic, clinic_name: row.clinic_name ?? null, depcode: room.code, location: row.contact_point ?? '',
       room_name: room.name, department_name: row.department_name ?? room.name,
       doctor_code: row.doctor, doctor_name: row.doctor_name,
       fiscal_year: fiscalYearForDate(row.nextdate),
