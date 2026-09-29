@@ -7,7 +7,7 @@ import { HOSXP_ROOMS } from '@/src/domain/hosxp';
 
 const STATUS: Record<string, string> = { ATTENDED: 'มาตามนัด', PENDING: 'รอตรวจ', MISSED: 'ไม่มาตามนัด' };
 type Count = { appointments: number; people: number; attended: number; pending: number; missed: number };
-type Row = { oapp_id: string; display_name: string; appointment_date: string; appointment_time: string | null;
+type Row = { oapp_id: string; display_name: string; work_group: string; appointment_date: string; appointment_time: string | null;
   room_name: string; doctor_name: string | null; location: string; fiscal_year: number; status: string };
 type Report = { summary: Count; rooms: (Count & { code: string; name: string })[]; rows: Row[] };
 
@@ -54,8 +54,8 @@ export function HosxpReport({ api, canExport }: { api: Api; canExport: boolean }
           {report.rooms.map(r => <tr key={r.code}><td>{r.name}</td><td>{r.appointments}</td><td>{r.people}</td><td>{r.attended}</td><td>{r.pending}</td><td>{r.missed}</td></tr>)}
         </Table></section>
       <section className="surface padded"><div className="section-head"><h3>รายการนัด</h3><p className="muted">{thaiDate(report ? from : '')} – {thaiDate(to)}</p></div>
-        <Table headers={['บุคลากร', 'วัน–เวลานัด', 'ห้องบริการ / ผู้ให้บริการ', 'จุดติดต่อ', 'สถานะ']} empty={!report.rows.length}>
-          {report.rows.map(a => <tr key={a.oapp_id}><td>{a.display_name}</td>
+        <Table headers={['บุคลากร / กลุ่มงาน', 'วัน–เวลานัด', 'ห้องบริการ / ผู้ให้บริการ', 'จุดติดต่อ', 'สถานะ']} empty={!report.rows.length}>
+          {report.rows.map(a => <tr key={a.oapp_id}><td>{a.display_name}<small>{a.work_group}</small></td>
             <td>{thaiDate(a.appointment_date)}<small>{a.appointment_time ? `${a.appointment_time.slice(0, 5)} น.` : 'ไม่ระบุเวลา'} · ปีงบประมาณ {a.fiscal_year}</small></td>
             <td>{a.room_name}<small>{a.doctor_name || 'ไม่ระบุผู้ให้บริการ'}</small></td><td>{a.location || '—'}</td>
             <td><span className="badge">{STATUS[a.status]}</span></td></tr>)}

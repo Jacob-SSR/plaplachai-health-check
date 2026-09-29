@@ -3,6 +3,7 @@ import { id,ensure,bangkokNow,fiscalYearForDate,fiscalRange } from '../domain/va
 import { HOSXP_ROOMS,hosxpRoom } from '../domain/hosxp';
 import { readPersonnelOapp,withEmployees } from './hosxp';
 import { activeHosxpStatus } from './hosxp-sync';
+import { hrLookup } from './hr-personnel';
 
 export function calendarPeriod(params:URLSearchParams) {
   const month=params.get('month')??bangkokNow().day.slice(0,7);
@@ -26,22 +27,12 @@ export async function publicCalendar(params:URLSearchParams){
   // Read HOSxP live so a new appointment shows without waiting for the worker.
   let data=(await readPersonnelOapp({from:`${month}-01`,to:next.toISOString().slice(0,10)},{room})).filter(a=>activeHosxpStatus(a.source_status_id));
   if(department)data=await withEmployees(data,undefined,department);
-  const groupsByName=await workGroups();
+  const hr=await hrLookup();
   const appointments=data.map(a=>({oapp_id:a.oapp_id,day:a.appointment_date,time:a.appointment_time??'',
     group_id:Number(a.depcode),group_name:a.room_name,name:a.display_name,
-    work_group:groupsByName.get(nameKey(a.display_name))??'',clinic_name:a.clinic_name??'',
+    work_group:hr(a.personnel_code,a.display_name)?.work_group??'',department:hr(a.personnel_code,a.display_name)?.department??'',clinic_name:a.clinic_name??'',
     doctor_name:a.doctor_name??'',location:a.location}))
     .sort((a,b)=>`${a.day} ${a.time} ${a.name}`.localeCompare(`${b.day} ${b.time} ${b.name}`));
   return {groups,departments,year,month,appointments};
 }
 
-const nameKey=(name:string)=>name.replace(/\s+/g,'');
-// กลุ่มงาน comes from the personnel file imported earlier (department parent), matched by name.
-async function workGroups(){
-  const people=await rows<{name:string;hosxp_name:string|null;work_group:string}>(`SELECT CONCAT(e.first_name,e.last_name) name,e.hosxp_doctor_name hosxp_name,
-    COALESCE(parent.name,d.name) work_group FROM employees e JOIN employee_assignments a ON a.employee_id=e.id AND a.valid_to IS NULL
-    JOIN departments d ON d.id=a.department_id LEFT JOIN departments parent ON parent.id=d.parent_id`);
-  const map=new Map<string,string>();
-  for(const p of people)for(const n of [p.name,p.hosxp_name])if(n&&!map.has(nameKey(n)))map.set(nameKey(n),p.work_group);
-  return map;
-}

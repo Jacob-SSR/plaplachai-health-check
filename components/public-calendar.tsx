@@ -8,7 +8,7 @@ import { Select,Table,thaiDate,type Item } from './ui';
 import { bangkokNow,fiscalYearForDate } from '../src/domain/validation';
 import { HOSXP_ROOMS } from '../src/domain/hosxp';
 
-type Appt={oapp_id:string;day:string;time:string;group_id:number;group_name:string;name:string;work_group:string;clinic_name:string;doctor_name:string;location:string};
+type Appt={oapp_id:string;day:string;time:string;group_id:number;group_name:string;name:string;work_group:string;department:string;clinic_name:string;doctor_name:string;location:string};
 type Data={departments:Item[];appointments:Appt[]};
 type Account={admin:boolean;name:string;csrf:string}|null;
 const groups=HOSXP_ROOMS.map(room=>({id:Number(room.code),name:room.name}));
@@ -66,6 +66,7 @@ export function PublicCalendar({account}:{account:Account}){
         <dl className="detail-list">
           <div><dt>ชื่อ</dt><dd>{detail.name}</dd></div>
           <div><dt>กลุ่มงาน</dt><dd>{detail.work_group||'ไม่ระบุ'}</dd></div>
+          <div><dt>หน่วยงาน</dt><dd>{detail.department||'ไม่ระบุ'}</dd></div>
           <div><dt>วันที่นัด</dt><dd>{thaiDate(detail.day)}</dd></div>
           <div><dt>เวลานัด</dt><dd>{detail.time?`${detail.time.slice(0,5)} น.`:'ไม่ระบุเวลา'}</dd></div>
           <div><dt>คลินิกที่นัด</dt><dd>{detail.clinic_name||detail.group_name}</dd></div>

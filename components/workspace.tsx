@@ -41,7 +41,7 @@ export function Workspace({actor}:{actor:Actor}){
  {!error&&<>{false?<section className="surface welcome"><ClipboardList size={42}/><h2>ยังไม่มีรายงานของปีงบประมาณนี้</h2><p>ดูวันนัดปัจจุบันที่เมนู นัดหมายจาก HOSxP</p></section>:<>
  {tab==='reports'&&<HosxpReport api={api} canExport={actor.permissions.includes('export.execute')}/>}
  {tab==='schedule'&&<HosxpSchedule api={api}/>}
- {['personnel','users'].includes(tab)&&<Registry key={tab} tab={tab} masters={data.masters} employees={data.employees} api={api} reload={reload} canManage={canManage} users={data.users}/>}
+ {['personnel','users'].includes(tab)&&<Registry key={tab} tab={tab} masters={data.masters} employees={data.employees} api={api} reload={reload} canManage={canManage} users={data.users} csrf={actor.csrf}/>}
  {tab==='notifications'&&data.settings&&<Notifications employees={data.employees} jobs={data.jobs} settings={data.settings} api={api} reload={reload}/>}
  {tab==='audit'&&<><div className="section-head"><div><h2>ประวัติการใช้งาน</h2><p className="muted">200 เหตุการณ์ล่าสุด · เวลา UTC</p></div></div><div className="surface"><Table headers={['เวลา UTC','ผู้ดำเนินการ','การกระทำ','รายการอ้างอิง','รายละเอียด']} empty={!data.audit.length}>{data.audit.map(a=><tr key={a.id}><td>{s(a.created_at)}</td><td>{s(a.actor)||'Worker'}</td><td>{s(a.action)}</td><td>{s(a.entity_type)} #{s(a.entity_id)}</td><td className="audit-detail">{JSON.stringify(a.changes)}</td></tr>)}</Table></div></>}
  </>}</>}

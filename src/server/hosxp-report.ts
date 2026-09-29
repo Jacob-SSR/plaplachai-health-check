@@ -5,6 +5,7 @@ import { readPersonnelOapp, withEmployees } from './hosxp';
 import { activeHosxpStatus } from './hosxp-sync';
 import { bangkokNow, date, ensure, fiscalRange, fiscalYearForDate } from '../domain/validation';
 import { HOSXP_ROOMS } from '../domain/hosxp';
+import { hrLookup } from './hr-personnel';
 
 export const REPORT_STATUS = { ATTENDED: 'มาตามนัด', PENDING: 'รอตรวจ', MISSED: 'ไม่มาตามนัด' } as const;
 type Status = keyof typeof REPORT_STATUS;
@@ -32,7 +33,9 @@ export async function hosxpReport(params: URLSearchParams, actor: Actor) {
     missed: list.filter(a => a.status === 'MISSED').length,
   });
   const rooms = HOSXP_ROOMS.map(room => ({ code: room.code, name: room.name, ...count(data.filter(a => a.depcode === room.code)) }));
-  const rows = data.map(a => ({ oapp_id: a.oapp_id, display_name: a.display_name, appointment_date: a.appointment_date,
+  const hr = await hrLookup();
+  const rows = data.map(a => ({ oapp_id: a.oapp_id, display_name: a.display_name,
+    work_group: hr(a.personnel_code, a.display_name)?.work_group ?? '', appointment_date: a.appointment_date,
     appointment_time: a.appointment_time, room_name: a.room_name, doctor_name: a.doctor_name, location: a.location,
     fiscal_year: a.fiscal_year, status: a.status }));
   return { from, to, summary: count(data), rooms, rows };
@@ -41,8 +44,8 @@ export async function hosxpReport(params: URLSearchParams, actor: Actor) {
 export async function hosxpReportExcel(params: URLSearchParams, actor: Actor) {
   const report = await hosxpReport(params, actor), book = new ExcelJS.Workbook();
   const sheet = book.addWorksheet('นัดหมาย');
-  sheet.addRow(['เลขนัด HOSxP', 'บุคลากร', 'วันที่นัด', 'เวลา', 'ปีงบประมาณ', 'ห้องบริการ', 'ผู้ให้บริการ', 'จุดติดต่อ', 'สถานะ']);
-  for (const a of report.rows) sheet.addRow([a.oapp_id, a.display_name, a.appointment_date, a.appointment_time?.slice(0, 5) ?? '',
+  sheet.addRow(['เลขนัด HOSxP', 'บุคลากร', 'กลุ่มงาน', 'วันที่นัด', 'เวลา', 'ปีงบประมาณ', 'ห้องบริการ', 'ผู้ให้บริการ', 'จุดติดต่อ', 'สถานะ']);
+  for (const a of report.rows) sheet.addRow([a.oapp_id, a.display_name, a.work_group, a.appointment_date, a.appointment_time?.slice(0, 5) ?? '',
     a.fiscal_year, a.room_name, a.doctor_name ?? '', a.location, REPORT_STATUS[a.status]]);
   const summary = book.addWorksheet('สรุปตามห้อง');
   summary.addRow(['ห้องบริการ', 'นัดทั้งหมด', 'จำนวนคน', 'มาตามนัด', 'รอตรวจ', 'ไม่มาตามนัด']);
