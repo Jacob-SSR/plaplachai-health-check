@@ -16,3 +16,15 @@
 .detail-list div{border-bottom:1px solid var(--line);padding-bottom:8px}.detail-list dt{font-size:12px;color:var(--muted,#667)}.detail-list dd{margin:2px 0 0;font-weight:600}
 .link-button{background:none;border:0;padding:0;min-height:0;color:inherit;font-weight:600;text-decoration:underline;cursor:pointer}
 .clickable-row{cursor:pointer}.clickable-row:hover td{background:#f4f8f3}
+.cal-group{margin-top:6px}
+.cal-group-name{font-size:10px;font-weight:700;color:var(--forest-dark,#18584a);line-height:1.4;border-bottom:1px solid var(--line);padding-bottom:2px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-group ul{list-style:none;margin:0;padding:0}
+.cal-person{display:flex;align-items:center;gap:5px;width:100%;background:none;border:0;border-radius:4px;padding:2px 3px;min-height:0;font-size:11px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.cal-person:hover,.cal-person:focus-visible{background:#eef4ef}
+.cal-dot{flex:0 0 9px;height:9px;border-radius:50%;display:inline-block;background:#9ab}
+.cal-dot.service-dental{background:#9b4805}.cal-dot.service-thai{background:#15567f}.cal-dot.service-physical{background:#376526}.cal-dot.service-blood{background:#763993}
+.cal-more{background:none;border:0;padding:2px 3px;min-height:0;font-size:11px;text-decoration:underline;cursor:pointer;margin-top:3px}
+.service-legend span::before{content:'';display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:currentColor;vertical-align:middle}
+.cal-name{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+section[aria-label="ปฏิทินตรวจสุขภาพ"] .service-legend{padding:0 20px}
+.badge.service-dental{background:#fff0df;color:#9b4805}.badge.service-thai{background:#e1effa;color:#15567f}.badge.service-physical{background:#e4f2dd;color:#376526}.badge.service-blood{background:#f1e4f8;color:#763993}

@@ -33,7 +33,9 @@ export function PublicCalendar({account}:{account:Account}){
   const shift=(step:number)=>{const d=new Date(first);d.setUTCMonth(d.getUTCMonth()+step);setMonth(d.toISOString().slice(0,7));setSelected('');setDetail(undefined);};
   const list=data.appointments.filter(v=>!selected||v.day===selected);
   const tone=(groupId:number)=>serviceTone(groups.find(g=>g.id===groupId)?.name??'',0);
-  const label=(a:Appt)=>`${a.work_group?a.work_group+' · ':''}${a.name}`;
+  const shortGroup=(g:string)=>g.replace(/^กลุ่มงาน/,'').trim()||'ไม่ระบุกลุ่มงาน';
+  const byGroup=(list:Appt[])=>{const m=new Map<string,Appt[]>();for(const a of list){const k=shortGroup(a.work_group);m.set(k,[...(m.get(k)??[]),a]);}return [...m.entries()].sort(([a],[b])=>a.localeCompare(b,'th'));};
+  const MAX_IN_DAY=6;
   const open=(a:Appt)=>{setSelected(a.day);setDetail(a);};
   return <div className="public-shell"><header className="public-header">
     <Link href="/" className="brand"><HospitalLogo/><div>โรงพยาบาลพลับพลาชัย<small>ตารางตรวจสุขภาพบุคลากร</small></div></Link>
@@ -57,8 +59,9 @@ export function PublicCalendar({account}:{account:Account}){
           {Array.from({length:offset},(_,i)=><div key={`blank${i}`} className="day blank"/>)}
           {Array.from({length:days},(_,i)=>{const day=`${month}-${String(i+1).padStart(2,'0')}`;return <div key={day} className={`day ${selected===day?'selected-day':''}`}>
             <button className="day-number" aria-label={`ดูนัด ${thaiDate(day)}`} onClick={()=>setSelected(day)}>{i+1}</button>
-            {(()=>{const today=data.appointments.filter(v=>v.day===day);return <>{today.slice(0,3).map(a=><button key={a.oapp_id} title={`${label(a)} · ${a.group_name}`} className={`calendar-chip ${tone(a.group_id)}`} onClick={()=>open(a)}>{label(a)}</button>)}
-              {today.length>3&&<button className="calendar-chip" onClick={()=>{setSelected(day);setDetail(undefined);}}>อีก {today.length-3} คน</button>}</>;})()}
+            {(()=>{const today=data.appointments.filter(v=>v.day===day);let shown=0;return <>{byGroup(today).map(([group,people])=>{const visible=people.slice(0,Math.max(0,MAX_IN_DAY-shown));shown+=visible.length;return visible.length?<div key={group} className="cal-group"><div className="cal-group-name" title={group}>{group}</div>
+              <ul>{visible.map(a=><li key={a.oapp_id}><button className="cal-person" title={`${a.name} · ${a.group_name}${a.time?' · '+a.time.slice(0,5)+' น.':''}`} onClick={()=>open(a)}><i className={`cal-dot ${tone(a.group_id)}`}/><span className="cal-name">{a.name}</span></button></li>)}</ul></div>:null;})}
+              {today.length>MAX_IN_DAY&&<button className="cal-more" onClick={()=>{setSelected(day);setDetail(undefined);}}>อีก {today.length-MAX_IN_DAY} คน</button>}</>;})()}
           </div>;})}</div></div>
       </section>
       {detail&&<section className="surface padded" aria-label="รายละเอียดนัด"><div className="section-head"><div><h2>{detail.name}</h2>
