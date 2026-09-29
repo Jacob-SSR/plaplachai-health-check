@@ -132,25 +132,37 @@ export async function withEmployees<T extends { personnel_code: string }>(data: 
   return data.flatMap(row => byCode.has(row.personnel_code) ? [{ ...row, employee_id: byCode.get(row.personnel_code)! }] : []);
 }
 
-// LAB items ordered with each appointment, as HOSxP shows them on the appointment screen.
+// LAB items ordered with each appointment (LAB order form), as HOSxP shows them on the appointment screen:
+// service names (lab_app_order_service) and ordered items (lab_app_order -> lab_items).
 // Missing tables or a read error never block the page or the notice; the items are just left out.
+const LAB_ITEM_QUERIES = [
+  (marks: string) => `SELECT DISTINCT h.oapp_id,s.lab_name name FROM lab_app_head h JOIN lab_app_order_service s ON s.lab_app_order_number=h.lab_app_order_number
+    WHERE h.oapp_id IN (${marks})`,
+  (marks: string) => `SELECT DISTINCT h.oapp_id,i.lab_items_name name FROM lab_app_head h JOIN lab_app_order o ON o.lab_app_order_number=h.lab_app_order_number
+    JOIN lab_items i ON i.lab_items_code=o.lab_items_code WHERE h.oapp_id IN (${marks})`,
+];
 export async function hosxpLabTests(oappIds: string[]) {
   const map = new Map<string, string[]>();
   const ids = [...new Set(oappIds.map(String))].filter(id => /^\d{1,20}$/.test(id));
   for (let i = 0; i < ids.length; i += 200) {
-    const batch = ids.slice(i, i + 200);
-    try {
-      const [found] = await hosxpPool().execute<RowDataPacket[]>({ timeout: 15000, values: batch,
-        sql: `SELECT DISTINCT h.oapp_id,s.lab_name FROM lab_app_head h JOIN lab_app_order_service s ON s.lab_app_order_number=h.lab_app_order_number
-          WHERE h.oapp_id IN (${batch.map(() => '?').join(',')}) ORDER BY h.oapp_id,s.lab_name` });
-      for (const row of found) {
-        const name = String(row.lab_name ?? '').trim(); if (!name) continue;
-        const key = String(row.oapp_id), list = map.get(key) ?? [];
-        if (!list.includes(name)) list.push(name); map.set(key, list);
-      }
-    } catch (error) { console.error({ code: 'HOSXP_LAB_ITEMS', message: error instanceof Error ? error.message.slice(0, 200) : '' }); }
+    const batch = ids.slice(i, i + 200), marks = batch.map(() => '?').join(',');
+    for (const query of LAB_ITEM_QUERIES) {
+      try {
+        const [found] = await hosxpPool().execute<RowDataPacket[]>({ timeout: 15000, values: batch, sql: query(marks) });
+        for (const row of found) {
+          const name = String(row.name ?? '').trim(); if (!name) continue;
+          const key = String(row.oapp_id), list = map.get(key) ?? [];
+          if (!list.includes(name)) list.push(name); map.set(key, list);
+        }
+      } catch (error) { console.error({ code: 'HOSXP_LAB_ITEMS', message: error instanceof Error ? error.message.slice(0, 200) : '' }); }
+    }
   }
   return map;
+}
+// Everything known about one appointment's LAB: ticked boxes plus the LAB order form.
+export async function labTestsForAppointment(oappId: string, day: string) {
+  const [a] = await withLabTests(await readPersonnelOapp({ from: day, to: day }, { oappId }));
+  return a?.lab_tests ?? (await hosxpLabTests([oappId])).get(oappId) ?? [];
 }
 export async function withLabTests<T extends { oapp_id: string; has_lab?: boolean; lab_ticked?: string[] }>(data: T[]) {
   const lab = data.filter(a => a.has_lab);
