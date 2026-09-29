@@ -57,3 +57,5 @@ section[aria-label="ปฏิทินตรวจสุขภาพ"] .service-
 .switch[aria-checked=true]{background:#18584a}.switch[aria-checked=true] span{transform:translateX(20px)}
 @media (max-width:600px){.reminder-round{grid-template-columns:auto 1fr;}.reminder-round small{grid-column:1/-1}}
 .badge.status-attended{background:#e4f2dd;color:#2f5d1f}.badge.status-pending{background:#e1effa;color:#15567f}.badge.status-missed{background:#fde4e1;color:#9f1d12}
+.notice-card dd{white-space:pre-line}.notice-card-prepare strong{display:block;margin-top:6px}
+small.lab-tests{display:block;color:#763993}

@@ -12,7 +12,7 @@ import { notificationSettings,retryNotification,reminderText,sendManualNotificat
 import { audit } from '@/src/server/audit';
 import { publicCalendar } from '@/src/server/public-calendar';
 import { sendTestNotification } from '@/src/server/notification-test';
-import { getOapp,hosxpOptions,syncHosxpPersonnel } from '@/src/server/hosxp';
+import { getOappWithLab,hosxpOptions,syncHosxpPersonnel } from '@/src/server/hosxp';
 
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -43,7 +43,7 @@ async function handle(req:NextRequest,{params}:{params:Promise<{path:string[]}>}
     else if(path[0]==='employees'&&path[2]==='recipient'&&method==='PATCH'){allow('notification.manage');result=await setRecipient(id.parse(path[1]),await jsonBody(req),actor);}
     else if(route==='appointments'&&method==='GET'){allow('appointment.read');result=await listAppointments(url,actor);}
     else if(route==='hosxp/options'&&method==='GET'){allow('appointment.read');allow('employee.read');await syncHosxpPersonnel();result=await hosxpOptions(actor);}
-    else if(route==='hosxp/oapp'&&method==='GET'){allow('appointment.read');allow('employee.read');await syncHosxpPersonnel();result=await getOapp(url,actor);}
+    else if(route==='hosxp/oapp'&&method==='GET'){allow('appointment.read');allow('employee.read');await syncHosxpPersonnel();result=await getOappWithLab(url,actor);}
     else if(route==='calendar'&&method==='GET'){allow('appointment.read');result=await listAppointments(url,actor,true);}
     else if(route==='reports'&&method==='GET'){allow('report.read');await syncHosxpPersonnel();result=await hosxpReport(url,actor);}
     else if(route==='imports'&&method==='GET'){allow('import.execute');result=await rows('SELECT * FROM import_batches WHERE imported_by=? ORDER BY created_at DESC LIMIT 100',[actor.id]);}

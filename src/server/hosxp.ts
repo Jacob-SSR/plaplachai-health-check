@@ -102,12 +102,42 @@ export async function withEmployees<T extends { personnel_code: string }>(data: 
   return data.flatMap(row => byCode.has(row.personnel_code) ? [{ ...row, employee_id: byCode.get(row.personnel_code)! }] : []);
 }
 
+// LAB items ordered with each appointment, as HOSxP shows them on the appointment screen.
+// Missing tables or a read error never block the page or the notice; the items are just left out.
+export async function hosxpLabTests(oappIds: string[]) {
+  const map = new Map<string, string[]>();
+  const ids = [...new Set(oappIds.map(String))].filter(id => /^\d{1,20}$/.test(id));
+  for (let i = 0; i < ids.length; i += 200) {
+    const batch = ids.slice(i, i + 200);
+    try {
+      const [found] = await hosxpPool().execute<RowDataPacket[]>({ timeout: 15000, values: batch,
+        sql: `SELECT DISTINCT h.oapp_id,s.lab_name FROM lab_app_head h JOIN lab_app_order_service s ON s.lab_app_order_number=h.lab_app_order_number
+          WHERE h.oapp_id IN (${batch.map(() => '?').join(',')}) ORDER BY h.oapp_id,s.lab_name` });
+      for (const row of found) {
+        const name = String(row.lab_name ?? '').trim(); if (!name) continue;
+        const key = String(row.oapp_id), list = map.get(key) ?? [];
+        if (!list.includes(name)) list.push(name); map.set(key, list);
+      }
+    } catch (error) { console.error({ code: 'HOSXP_LAB_ITEMS', message: error instanceof Error ? error.message.slice(0, 200) : '' }); }
+  }
+  return map;
+}
+export async function withLabTests<T extends { oapp_id: string; depcode: string }>(data: T[]) {
+  const lab = data.filter(a => a.depcode === '006');
+  const tests = lab.length ? await hosxpLabTests(lab.map(a => a.oapp_id)) : new Map<string, string[]>();
+  return data.map(a => ({ ...a, lab_tests: tests.get(a.oapp_id) ?? [] }));
+}
+
 export async function getOapp(params: URLSearchParams, actor?: Actor) {
   const range = oappRange(params);
   const source = await readPersonnelOapp(range, { room: params.get('room') || undefined,
     doctor: params.get('doctor') || undefined, personnel: params.get('personnel') || undefined });
   const data = await withEmployees(source, actor);
   return { source: 'HOSXP', ...range, data, total: data.length };
+}
+export async function getOappWithLab(params: URLSearchParams, actor?: Actor) {
+  const result = await getOapp(params, actor);
+  return { ...result, data: await withLabTests(result.data) };
 }
 
 export async function syncHosxpPersonnel() {

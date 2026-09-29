@@ -1,8 +1,9 @@
 'use client';
 import { useState } from 'react';
-import { HOSPITAL_NAME, NOTICE_FOOTER, NOTICE_PREPARE, noticeLead, noticeRows, noticeTitle, type Notice, type NoticeKind } from '@/src/domain/notice';
+import { HOSPITAL_NAME, NOTICE_FOOTER, NOTICE_PREPARE, noticePreparation, noticeLead, noticeRows, noticeTitle, type Notice, type NoticeKind } from '@/src/domain/notice';
 
 const SAMPLE: Omit<Notice, 'kind'> = { name: 'ตัวอย่าง บุคลากร', date: '2027-01-29', time: '08:30:00', service: 'แพทย์แผนไทย', location: 'ห้องบัตร', daysBefore: 2 };
+const LAB_SAMPLE: Omit<Notice, 'kind'> = { ...SAMPLE, service: 'LAB', location: 'ห้องปฏิบัติการ', tests: ['CBC', 'FBS', 'Cholesterol', 'Triglyceride', 'Creatinine', 'UA'] };
 const KINDS: [NoticeKind, string][] = [['NEW', 'ลงนัดครั้งแรก'], ['REMINDER', 'ก่อนวันนัด 2 วัน'], ['CHANGED', 'เลื่อนนัด'], ['MANUAL', 'กดส่งเอง']];
 
 // Same layout as noticeFlex(): header with hospital logo, name box, details, notes.
@@ -14,19 +15,20 @@ export function NoticeCard({ notice }: { notice: Notice }) {
       <div className="notice-card-name">คุณ{notice.name}</div>
       <p className="notice-card-lead">{noticeLead(notice)}</p>
       <dl>{noticeRows(notice).map(([icon, label, value]) => <div key={label}><dt>{icon} {label}</dt><dd>{value}</dd></div>)}</dl>
-      <div className="notice-card-prepare"><strong>🪪 สิ่งที่ต้องนำมา</strong><ul>{NOTICE_PREPARE.map(item => <li key={item}>{item}</li>)}</ul></div>
+      <div className="notice-card-prepare"><strong>🪪 สิ่งที่ต้องนำมา</strong><ul>{NOTICE_PREPARE.map(item => <li key={item}>{item}</li>)}</ul>
+        {noticePreparation(notice).length > 0 && <><strong>📝 การเตรียมตัวก่อนรับการตรวจ</strong><ul>{noticePreparation(notice).map(item => <li key={item}>{item}</li>)}</ul></>}</div>
     </div>
     <ul className="notice-card-foot">{NOTICE_FOOTER.map(line => <li key={line}>{line}</li>)}</ul>
   </div>;
 }
 
 export function NoticePreview() {
-  const [kind, setKind] = useState<NoticeKind>('NEW');
+  const [kind, setKind] = useState<NoticeKind>('NEW'), [lab, setLab] = useState(false);
   return <section className="surface padded" aria-label="ตัวอย่างข้อความแจ้งเตือน"><div className="section-head"><div>
     <h3>ตัวอย่างข้อความที่บุคลากรได้รับใน LINE หมอพร้อม</h3>
     <p className="helper">การ์ด LINE Flex ที่ออกแบบเอง ส่งผ่าน MOPH Alert · ถ้า MOPH ไม่รับการ์ดนี้ ระบบจะส่งเป็นการ์ดมาตรฐานของ MOPH แทน</p></div></div>
-    <div className="subnav">{KINDS.map(([k, label]) => <button key={k} aria-pressed={kind === k} onClick={() => setKind(k)}>{label}</button>)}</div>
-    <div className="notice-preview"><NoticeCard notice={{ ...SAMPLE, kind }}/>
+    <div className="subnav">{KINDS.map(([k, label]) => <button key={k} aria-pressed={kind === k} onClick={() => setKind(k)}>{label}</button>)}<button aria-pressed={lab} onClick={() => setLab(v => !v)}>ตัวอย่างนัด LAB</button></div>
+    <div className="notice-preview"><NoticeCard notice={{ ...(lab ? LAB_SAMPLE : SAMPLE), kind }}/>
       <div className="notice-when"><h4>ส่งเมื่อไหร่</h4><ul>
         <li><strong>ลงนัดครั้งแรก</strong> ส่งทันทีเมื่อ worker พบนัดใหม่ใน HOSxP</li>
         <li><strong>เลื่อนนัด</strong> ส่งทันทีเมื่อวัน เวลา หรือจุดติดต่อเปลี่ยน</li>

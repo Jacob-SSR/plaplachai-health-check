@@ -1,6 +1,7 @@
 // Appointment notice sent to LINE หมอพร้อม. Plain text is always available; the Flex card is opt-in.
 export type NoticeKind = 'NEW' | 'CHANGED' | 'REMINDER' | 'MANUAL';
-export type Notice = { kind: NoticeKind; name: string; date: string; time: string | null; service: string; location: string; daysBefore?: number };
+export type Notice = { kind: NoticeKind; name: string; date: string; time: string | null; service: string; location: string; daysBefore?: number;
+  /** LAB item names from HOSxP (lab_app_order_service.lab_name) */ tests?: string[] };
 
 export const HOSPITAL_NAME = 'โรงพยาบาลพลับพลาชัย';
 const TITLES: Record<NoticeKind, string> = {
@@ -24,12 +25,42 @@ export function noticeRows(n: Notice): [string, string, string][] {
     ['📅', 'วันที่', thaiLongDate(n.date)],
     ['⏰', 'เวลา', n.time ? `${n.time.slice(0, 5)} น.` : 'โปรดติดต่อเจ้าหน้าที่เพื่อยืนยันเวลา'],
     ['🩺', 'บริการ', n.service || '-'],
+    ...(n.tests?.length ? [['🧪', 'รายการตรวจ', `${thaiList(labGroups(n.tests))}\n(${testsLine(n.tests)})`] as [string, string, string]] : []),
     ['📍', 'ติดต่อที่', n.location || HOSPITAL_NAME],
   ];
 }
 export const NOTICE_PREPARE = ['บัตรประจำตัวประชาชน'];
+
+// LAB items grouped for a formal summary; preparation advice only for tests that need it.
+const URINE = /urine|\bUA\b|U\/A|ปัสสาวะ|microalbumin|UACR/i;
+const STOOL = /stool|อุจจาระ|occult|FOBT|FIT\b/i;
+const FASTING = /FBS|FPG|glucose|น้ำตาล|chol|triglyceride|\bTG\b|HDL|LDL|lipid|ไขมัน/i;
+export function labGroups(tests: string[] = []) {
+  const groups: string[] = [];
+  if (tests.some(t => !URINE.test(t) && !STOOL.test(t))) groups.push('การตรวจเลือด');
+  if (tests.some(t => URINE.test(t))) groups.push('การตรวจปัสสาวะ');
+  if (tests.some(t => STOOL.test(t))) groups.push('การตรวจอุจจาระ');
+  return groups;
+}
+export const thaiList = (items: string[]) => items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} และ${items[items.length - 1]}`;
+export function noticePreparation(n: Notice) {
+  const tests = n.tests ?? [], steps: string[] = [];
+  if (tests.some(t => FASTING.test(t))) steps.push('งดอาหารและเครื่องดื่มทุกชนิด ยกเว้นน้ำเปล่า อย่างน้อย 8 ชั่วโมงก่อนการเจาะเลือด');
+  if (tests.some(t => URINE.test(t))) steps.push('เก็บตัวอย่างปัสสาวะช่วงกลางของการถ่ายปัสสาวะ ตามคำแนะนำของเจ้าหน้าที่ห้องปฏิบัติการ');
+  if (tests.some(t => STOOL.test(t))) steps.push('รับภาชนะเก็บตัวอย่างอุจจาระและคำแนะนำจากเจ้าหน้าที่ห้องปฏิบัติการ');
+  return steps;
+}
+const TESTS_SHOWN = 12;
+export function testsLine(tests: string[] = []) {
+  const shown = tests.slice(0, TESTS_SHOWN).join(', ');
+  return tests.length > TESTS_SHOWN ? `${shown} และอีก ${tests.length - TESTS_SHOWN} รายการ` : shown;
+}
 export const NOTICE_FOOTER = ['กรุณามาก่อนเวลานัด 15 นาที', 'หากไม่สะดวกหรือต้องการเลื่อนนัด โปรดติดต่อเจ้าหน้าที่'];
 
+function prepareLines(n: Notice) {
+  const steps = noticePreparation(n);
+  return [`🪪 สิ่งที่ต้องนำมา : ${NOTICE_PREPARE.join(', ')}`, ...(steps.length ? ['📝 การเตรียมตัวก่อนรับการตรวจ', ...steps.map(s => `   - ${s}`)] : [])];
+}
 export function noticeText(n: Notice) {
   return [
     `🏥 ${HOSPITAL_NAME}`,
@@ -41,7 +72,7 @@ export function noticeText(n: Notice) {
     '',
     ...noticeRows(n).map(([icon, label, value]) => `${icon} ${label} : ${value}`),
     '',
-    `🪪 สิ่งที่ต้องนำมา : ${NOTICE_PREPARE.join(', ')}`,
+    ...prepareLines(n),
     '',
     ...NOTICE_FOOTER.map(line => `• ${line}`),
   ].join('\n');
@@ -52,12 +83,13 @@ export function noticeText(n: Notice) {
 export type OutboundMessage = { name: string; title: string; text: string; html: string; notice?: Notice };
 const escapeHtml = (v: string) => v.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 export function noticeCardText(n: Notice) {
-  return [noticeLead(n), '', ...noticeRows(n).map(([icon, label, value]) => `${icon} ${label} : ${value}`), '', `🪪 สิ่งที่ต้องนำมา : ${NOTICE_PREPARE.join(', ')}`, '', ...NOTICE_FOOTER].join('\n');
+  return [noticeLead(n), '', ...noticeRows(n).map(([icon, label, value]) => `${icon} ${label} : ${value}`), '', ...prepareLines(n), '', ...NOTICE_FOOTER].join('\n');
 }
 export function noticeHtml(n: Notice) {
   return `<div><strong>${escapeHtml(noticeTitle(n))}</strong><br/>${escapeHtml(noticeLead(n))}<br/>`
     + noticeRows(n).map(([, label, value]) => `<strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}`).join('<br/>')
     + `<br/><br/><strong>สิ่งที่ต้องนำมา:</strong> ${escapeHtml(NOTICE_PREPARE.join(', '))}`
+    + (noticePreparation(n).length ? `<br/><strong>การเตรียมตัวก่อนรับการตรวจ:</strong><br/>${noticePreparation(n).map(s => '- ' + escapeHtml(s)).join('<br/>')}` : '')
     + `<br/><br/>${NOTICE_FOOTER.map(escapeHtml).join('<br/>')}</div>`;
 }
 export function noticeMessage(n: Notice): OutboundMessage {
@@ -92,7 +124,9 @@ export function noticeFlex(n: Notice, logoUrl?: string) {
         { type: 'box', layout: 'vertical', spacing: 'sm', margin: 'md', contents: noticeRows(n).map(row) },
         { type: 'box', layout: 'vertical', margin: 'lg', backgroundColor: '#FFF7E6', cornerRadius: '10px', paddingAll: '12px', spacing: 'xs', contents: [
           { type: 'text', text: '🪪 สิ่งที่ต้องนำมา', weight: 'bold', size: 'sm', color: '#92400E' },
-          ...NOTICE_PREPARE.map(item => ({ type: 'text', text: `• ${item}`, size: 'sm', color: '#78350F', wrap: true }))] }] },
+          ...NOTICE_PREPARE.map(item => ({ type: 'text', text: `• ${item}`, size: 'sm', color: '#78350F', wrap: true })),
+          ...(noticePreparation(n).length ? [{ type: 'text', text: '📝 การเตรียมตัวก่อนรับการตรวจ', weight: 'bold', size: 'sm', color: '#92400E', margin: 'md' },
+            ...noticePreparation(n).map(item => ({ type: 'text', text: `• ${item}`, size: 'sm', color: '#78350F', wrap: true }))] : [])] }] },
       footer: { type: 'box', layout: 'vertical', spacing: 'xs', paddingAll: '14px', backgroundColor: '#F7F9F8', contents:
         NOTICE_FOOTER.map(text => ({ type: 'text', text: `• ${text}`, size: 'xs', color: '#6B7280', wrap: true })) },
     },

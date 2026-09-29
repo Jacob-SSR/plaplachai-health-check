@@ -8,7 +8,7 @@ import { HOSXP_ROOMS } from '@/src/domain/hosxp';
 
 type Appointment = { oapp_id: string; display_name: string; appointment_date: string;
   appointment_time: string | null; clinic: string | null; depcode: string | null; location: string; source_status_id: string | number | null;
-  room_name:string;doctor_code:string|null;doctor_name:string|null;fiscal_year:number;visited?:boolean };
+  room_name:string;doctor_code:string|null;doctor_name:string|null;fiscal_year:number;visited?:boolean;lab_tests?:string[] };
 const SENT: Record<string, string> = { ACCEPTED: 'ส่งแล้ว · MOPH รับคำขอ', DRY_RUN: 'โหมดทดสอบ · ไม่ได้ส่งจริง', BLOCKED: 'ยังส่งไม่ได้', FAILED: 'ส่งไม่ผ่าน', UNKNOWN: 'ยังยืนยันผลไม่ได้', CANCELLED: 'ยกเลิก' };
 export function HosxpSchedule({ api, canNotify = false }: { api: Api; canNotify?: boolean }) {
   const [{ from, to }, setPeriod] = useState(() => fiscalPeriod(currentFiscalYear()));
@@ -55,7 +55,7 @@ export function HosxpSchedule({ api, canNotify = false }: { api: Api; canNotify?
         {data.map(a => <tr key={a.oapp_id}><td>{a.display_name}</td><td>{thaiDate(a.appointment_date)}
           <small>{a.appointment_time ? `${a.appointment_time.slice(0, 5)} น.` : 'ไม่ระบุเวลา'} · ปีงบประมาณ {a.fiscal_year}</small></td>
           <td>{(() => { const st = appointmentStatus({ visited: !!a.visited, appointment_date: a.appointment_date }, today); return <span className={`badge status-${st.toLowerCase()}`}>{APPOINTMENT_STATUS[st]}</span>; })()}</td>
-          <td>{a.room_name}<small>{a.doctor_name||a.doctor_code||'ไม่ระบุผู้ให้บริการ'}</small></td><td>{a.location || '—'}</td><td>{a.oapp_id}<small>สถานะต้นทาง: {s(a.source_status_id)||'ไม่ระบุ'}</small></td>
+          <td>{a.room_name}<small>{a.doctor_name||a.doctor_code||'ไม่ระบุผู้ให้บริการ'}</small>{!!a.lab_tests?.length && <small className="lab-tests">🧪 {a.lab_tests.join(', ')}</small>}</td><td>{a.location || '—'}</td><td>{a.oapp_id}<small>สถานะต้นทาง: {s(a.source_status_id)||'ไม่ระบุ'}</small></td>
           {canNotify && <td>{a.appointment_date < today ? <small>เลยวันนัดแล้ว</small> : <><button disabled={!!sending} onClick={() => void notify(a)}>{sending === a.oapp_id ? 'กำลังส่ง…' : 'ส่งแจ้งเตือน'}</button>{sent[a.oapp_id] && <small role="status">{sent[a.oapp_id]}</small>}</>}</td>}</tr>)}
       </Table></>}</div></>;
 }

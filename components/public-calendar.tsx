@@ -8,8 +8,9 @@ import { Select,Table,thaiDate,type Item } from './ui';
 import { bangkokNow,fiscalYearForDate } from '../src/domain/validation';
 import { HOSXP_ROOMS } from '../src/domain/hosxp';
 import { APPOINTMENT_STATUS,type AppointmentStatus } from '../src/domain/appointment-status';
+import { labGroups,thaiList } from '../src/domain/notice';
 
-type Appt={oapp_id:string;day:string;time:string;group_id:number;group_name:string;name:string;work_group:string;department:string;clinic_name:string;doctor_name:string;location:string;status?:AppointmentStatus};
+type Appt={oapp_id:string;day:string;time:string;group_id:number;group_name:string;name:string;work_group:string;department:string;clinic_name:string;doctor_name:string;location:string;status?:AppointmentStatus;lab_tests?:string[]};
 type Data={departments:Item[];appointments:Appt[]};
 type Account={admin:boolean;name:string;csrf:string}|null;
 const groups=HOSXP_ROOMS.map(room=>({id:Number(room.code),name:room.name}));
@@ -84,6 +85,7 @@ export function PublicCalendar({account}:{account:Account}){
           <div><dt>เวลานัด</dt><dd>{detail.time?`${detail.time.slice(0,5)} น.`:'ไม่ระบุเวลา'}</dd></div>
           <div><dt>คลินิกที่นัด</dt><dd>{detail.clinic_name||detail.group_name}</dd></div>
           <div><dt>ห้องบริการ</dt><dd>{detail.group_name}</dd></div>
+          {!!detail.lab_tests?.length&&<div className="span-all"><dt>รายการตรวจทางห้องปฏิบัติการ</dt><dd>{thaiList(labGroups(detail.lab_tests))}<small>{detail.lab_tests.join(', ')}</small></dd></div>}
           <div><dt>ผู้ให้บริการ</dt><dd>{detail.doctor_name||'ไม่ระบุ'}</dd></div>
           <div><dt>จุดติดต่อ (ไปก่อน)</dt><dd>{detail.location||'—'}</dd></div>
         </dl>{notify?.id===detail.oapp_id&&<p className="notice" role="status">{notify.text}</p>}</section>}

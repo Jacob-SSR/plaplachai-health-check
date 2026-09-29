@@ -1,7 +1,7 @@
 import { rows } from './db';
 import { id,ensure,bangkokNow,fiscalYearForDate,fiscalRange } from '../domain/validation';
 import { HOSXP_ROOMS,hosxpRoom } from '../domain/hosxp';
-import { readPersonnelOapp,withEmployees } from './hosxp';
+import { readPersonnelOapp,withEmployees,withLabTests } from './hosxp';
 import { activeHosxpStatus } from './hosxp-sync';
 import { hrLookup } from './hr-personnel';
 import { appointmentStatus } from '../domain/appointment-status';
@@ -29,10 +29,11 @@ export async function publicCalendar(params:URLSearchParams){
   let data=(await readPersonnelOapp({from:`${month}-01`,to:next.toISOString().slice(0,10)},{room})).filter(a=>activeHosxpStatus(a.source_status_id));
   if(department)data=await withEmployees(data,undefined,department);
   const hr=await hrLookup();
+  data=await withLabTests(data);
   const appointments=data.map(a=>({oapp_id:a.oapp_id,day:a.appointment_date,time:a.appointment_time??'',
     group_id:Number(a.depcode),group_name:a.room_name,name:a.display_name,
     work_group:hr(a.personnel_code,a.display_name)?.work_group??'',department:hr(a.personnel_code,a.display_name)?.department??'',clinic_name:a.clinic_name??'',
-    doctor_name:a.doctor_name??'',location:a.location,status:appointmentStatus(a,bangkokNow().day)}))
+    doctor_name:a.doctor_name??'',location:a.location,lab_tests:(a as {lab_tests?:string[]}).lab_tests??[],status:appointmentStatus(a,bangkokNow().day)}))
     .sort((a,b)=>`${a.day} ${a.time} ${a.name}`.localeCompare(`${b.day} ${b.time} ${b.name}`));
   return {groups,departments,year,month,appointments};
 }

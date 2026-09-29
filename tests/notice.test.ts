@@ -53,3 +53,16 @@ test('every notice tells the person to bring the national ID card', () => {
   assert.ok(JSON.stringify(noticeFlex(notice)).includes('บัตรประจำตัวประชาชน'));
   assert.ok(noticeMessage(notice).html.includes('บัตรประจำตัวประชาชน'));
 });
+
+test('LAB notice lists the tests formally and adds preparation only when the tests need it', () => {
+  const lab: Notice = { ...notice, service: 'LAB', tests: ['CBC', 'FBS', 'UA'] };
+  const text = noticeText(lab);
+  assert.ok(text.includes('การตรวจเลือด และการตรวจปัสสาวะ'));
+  assert.ok(text.includes('CBC, FBS, UA'));
+  assert.ok(text.includes('งดอาหารและเครื่องดื่มทุกชนิด ยกเว้นน้ำเปล่า อย่างน้อย 8 ชั่วโมง'));
+  assert.ok(text.includes('ปัสสาวะช่วงกลาง'));
+  assert.ok(JSON.stringify(noticeFlex(lab)).includes('การเตรียมตัวก่อนรับการตรวจ'));
+  const cbcOnly = noticeText({ ...notice, service: 'LAB', tests: ['CBC'] });
+  assert.ok(!cbcOnly.includes('งดอาหาร') && !cbcOnly.includes('ปัสสาวะ'));
+  assert.ok(!noticeText(notice).includes('รายการตรวจ'));
+});
