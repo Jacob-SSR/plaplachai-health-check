@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { getOapp, readOappForRecipients } from './hosxp';
+import { getOapp, readPersonnelOapp } from './hosxp';
 import { rows, execute, transaction } from './db';
 import { canonicalJson, sha256 } from './crypto';
 import { addDays, bangkokNow } from '../domain/validation';
@@ -13,8 +13,8 @@ export function hosxpFingerprint(a: SourceAppointment) {
     time: a.appointment_time, location: a.location, status: a.source_status_id }));
 }
 export function activeHosxpStatus(status: unknown) {
-  // The supplied oapp export uses NULL. Other installations must configure their active IDs.
-  const accepted = (process.env.HOSXP_ACTIVE_STATUS_IDS ?? 'NULL').split(',').map(s => s.trim());
+  // NULL and 1 are normal appointments in HOSxP. Other installations can configure their active IDs.
+  const accepted = (process.env.HOSXP_ACTIVE_STATUS_IDS ?? 'NULL,1').split(',').map(s => s.trim());
   return accepted.includes(status == null ? 'NULL' : String(status));
 }
 export function futureHosxpAppointment(date: string, time: string | null, now = new Date()) {
@@ -65,9 +65,11 @@ export async function syncHosxpAppointments(now = new Date(), readSource: (param
   });
 }
 
-export async function hosxpAppointmentStillCurrent(a: RecordRow, cid: string) {
+export async function hosxpAppointmentStillCurrent(a: RecordRow) {
   const date = String(a.appointment_date);
-  const current = await readOappForRecipients([{ id: Number(a.employee_id), display_name: '', cid }], { from: date, to: date });
-  const source = current.find(row => row.oapp_id === String(a.oapp_id));
-  return !!source && activeHosxpStatus(source.source_status_id) && hosxpFingerprint(source) === a.fingerprint;
+  const [employee] = await rows<{code:string|null}>('SELECT hosxp_doctor_code code FROM employees WHERE id=?', [a.employee_id]);
+  if (!employee?.code) return false;
+  const [source] = await readPersonnelOapp({ from: date, to: date }, { personnel: employee.code, oappId: String(a.oapp_id) });
+  return !!source && activeHosxpStatus(source.source_status_id)
+    && hosxpFingerprint({ ...source, employee_id: Number(a.employee_id) }) === a.fingerprint;
 }

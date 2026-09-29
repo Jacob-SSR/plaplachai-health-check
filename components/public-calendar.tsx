@@ -43,7 +43,7 @@ export function PublicCalendar({account}:{account:Account}){
       {error&&<p role="alert" className="error">{error} · ยังโหลดข้อมูลนัดหมายไม่ได้</p>}
       {busy&&<p role="status" className="muted">กำลังโหลดนัดหมาย…</p>}
       <section className="surface" aria-label="ปฏิทินตรวจสุขภาพ"><div className="filters">
-        <Select label="หน่วยงาน" options={data.departments} value={filters.department??''} onChange={e=>setFilters({...filters,department:e.target.value})}/>
+        {data.departments.length>0&&<Select label="หน่วยงาน" options={data.departments} value={filters.department??''} onChange={e=>setFilters({...filters,department:e.target.value})}/>}
         <label>ห้องบริการ<select aria-label="ห้องบริการ" value={filters.group??''} onChange={e=>setFilters({...filters,group:e.target.value})}><option value="">ทุกห้องบริการ</option>{groups.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}</select></label>
         <p className="helper">แสดงเฉพาะภาพรวม ไม่มีรายชื่อหรือผลตรวจส่วนบุคคล</p></div>
         <div className="month-nav"><button aria-label="เดือนก่อน" disabled={month<='1960-02'} onClick={()=>shift(-1)}><ChevronLeft size={18}/></button>
@@ -58,7 +58,7 @@ export function PublicCalendar({account}:{account:Account}){
       </section>
       <section className="surface padded"><div className="section-head"><div><h2>{selected?`นัดวันที่ ${thaiDate(selected)}`:'นัดหมายในเดือนนี้'}</h2>
         <p className="muted">{busy?'กำลังโหลด':error?'ยังไม่สามารถยืนยันจำนวนนัด':`${slots.reduce((sum,v)=>sum+n(v.appointments),0)} นัดหมาย`} · เวลาไทย</p></div>{selected&&<button onClick={()=>setSelected('')}>ดูทั้งเดือน</button>}</div>
-        {!busy&&!error&&<><Table headers={['วันที่','เวลา','ห้องบริการ','สถานที่','จำนวนผู้มีนัด']} empty={!slots.length}>{slots.map((v,i)=><tr key={i}><td>{thaiDate(v.day)}</td><td>{v.time?`${v.time.slice(0,5)} น.`:'ไม่ระบุเวลา'}</td><td>{v.group_name}</td><td>{v.location}</td><td>{v.appointments}</td></tr>)}</Table>
+        {!busy&&!error&&<><Table headers={['วันที่','เวลา','ห้องบริการ','จุดติดต่อ (ไปก่อน)','จำนวนผู้มีนัด']} empty={!slots.length}>{slots.map((v,i)=><tr key={i}><td>{thaiDate(v.day)}</td><td>{v.time?`${v.time.slice(0,5)} น.`:'ไม่ระบุเวลา'}</td><td>{v.group_name}</td><td>{v.location}</td><td>{v.appointments}</td></tr>)}</Table>
         {!slots.length&&<p className="helper">ยังไม่มีนัดหมายในช่วงนี้ สามารถดูปฏิทินและเลื่อนเดือนได้ตามปกติ</p>}</>}
       </section>
     </main><footer className="page-footer">โรงพยาบาลพลับพลาชัย · งานตรวจสุขภาพบุคลากร<span>ข้อมูลตารางอาจเปลี่ยนแปลง โปรดติดต่อเจ้าหน้าที่เมื่อต้องการเลื่อนนัด</span></footer></div>;

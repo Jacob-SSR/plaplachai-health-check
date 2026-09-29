@@ -55,7 +55,7 @@ export async function dispatchOne(provider:NotificationProvider=new MophAlertPro
       await execute("UPDATE notification_jobs SET status='BLOCKED',safe_error='ผู้รับยังไม่เปิดแจ้งเตือนหรือยังไม่ตรวจรับ CID' WHERE id=?",[job.id],db);return {skipped:true};
     }
     let cid:string;try{cid=decrypt(String(a.cid_ciphertext));}catch{await execute("UPDATE notification_jobs SET status='BLOCKED',safe_error='กุญแจข้อมูลผู้รับไม่พร้อม' WHERE id=?",[job.id],db);return {skipped:true};}
-    if(job.hosxp_oapp_id&&!await hosxpAppointmentStillCurrent(a,cid)) {
+    if(job.hosxp_oapp_id&&!await hosxpAppointmentStillCurrent(a)) {
       await execute("UPDATE notification_jobs SET status='CANCELLED',safe_error='HOSXP_APPOINTMENT_CHANGED' WHERE id=?",[job.id],db);return {skipped:true};
     }
     await execute("UPDATE notification_jobs SET status='SENDING',attempt_count=attempt_count+1,lease_until=DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 2 MINUTE) WHERE id=?",[job.id],db);

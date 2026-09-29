@@ -39,8 +39,8 @@ export function HosxpSchedule({ api }: { api: Api }) {
     </div>{error && <p className="error" role="alert">{error}</p>}
     {optionsError&&<p className="helper" role="status">{optionsError}</p>}
     {busy ? <p role="status">กำลังอ่านวันนัดจาก HOSxP…</p> : !error && <>
-      <p className="helper">{data.length} นัด · บุคลากรจาก doctor ที่ยังปฏิบัติงาน (active=Y) จับคู่วันนัดด้วย CID</p>
-      <Table headers={['บุคลากร', 'วัน–เวลานัด / ปีงบประมาณ', 'ห้องบริการ / ผู้ให้บริการ', 'สถานที่', 'เลขนัด / รหัสสถานะ HOSxP']} empty={!data.length}>
+      <p className="helper">{data.length} นัด · บุคลากรจาก doctor ที่ยังปฏิบัติงาน (active=Y) จับคู่วันนัดด้วยชื่อหรือ CID</p>
+      <Table headers={['บุคลากร', 'วัน–เวลานัด / ปีงบประมาณ', 'ห้องบริการ / ผู้ให้บริการ', 'จุดติดต่อ (ไปก่อน)', 'เลขนัด / รหัสสถานะ HOSxP']} empty={!data.length}>
         {data.map(a => <tr key={a.oapp_id}><td>{a.display_name}</td><td>{thaiDate(a.appointment_date)}
           <small>{a.appointment_time ? `${a.appointment_time.slice(0, 5)} น.` : 'ไม่ระบุเวลา'} · ปีงบประมาณ {a.fiscal_year}</small></td>
           <td>{a.room_name}<small>{a.doctor_name||a.doctor_code||'ไม่ระบุผู้ให้บริการ'}</small></td><td>{a.location || '—'}</td><td>{a.oapp_id}<small>สถานะต้นทาง: {s(a.source_status_id)||'ไม่ระบุ'}</small></td></tr>)}
