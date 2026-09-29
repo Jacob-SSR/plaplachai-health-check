@@ -24,7 +24,7 @@ services:
     environment:
       PMA_HOST: mysql
       UPLOAD_LIMIT: 16M
-    ports: ["127.0.0.1:${PMA_HOST_PORT:-9090}:80"]
+    ports: ["127.0.0.1:${PMA_HOST_PORT:-6060}:80"]
     depends_on:
       mysql: { condition: service_healthy }
     networks: [health]
