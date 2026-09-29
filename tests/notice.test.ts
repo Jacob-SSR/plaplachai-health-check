@@ -47,3 +47,9 @@ test('a rejected flex card falls back once to the MOPH template; an uncertain re
     assert.equal(urls.length, 1);
   } finally { process.env = saved; }
 });
+
+test('every notice tells the person to bring the national ID card', () => {
+  assert.ok(noticeText(notice).includes('บัตรประจำตัวประชาชน'));
+  assert.ok(JSON.stringify(noticeFlex(notice)).includes('บัตรประจำตัวประชาชน'));
+  assert.ok(noticeMessage(notice).html.includes('บัตรประจำตัวประชาชน'));
+});

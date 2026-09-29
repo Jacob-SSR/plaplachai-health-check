@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Field, Table, s, thaiDate, type Api } from './ui';
-import { bangkokNow, addDays } from '@/src/domain/validation';
+import { Table, s, thaiDate, type Api } from './ui';
+import { PeriodPicker, fiscalPeriod, currentFiscalYear } from './period-picker';
 import { HOSXP_ROOMS } from '@/src/domain/hosxp';
 
 type Appointment = { oapp_id: string; display_name: string; appointment_date: string;
@@ -9,8 +9,7 @@ type Appointment = { oapp_id: string; display_name: string; appointment_date: st
   room_name:string;doctor_code:string|null;doctor_name:string|null;fiscal_year:number };
 const SENT: Record<string, string> = { ACCEPTED: 'ส่งแล้ว · MOPH รับคำขอ', DRY_RUN: 'โหมดทดสอบ · ไม่ได้ส่งจริง', BLOCKED: 'ยังส่งไม่ได้', FAILED: 'ส่งไม่ผ่าน', UNKNOWN: 'ยังยืนยันผลไม่ได้', CANCELLED: 'ยกเลิก' };
 export function HosxpSchedule({ api, canNotify = false }: { api: Api; canNotify?: boolean }) {
-  const [from, setFrom] = useState(() => bangkokNow().day);
-  const [to, setTo] = useState(() => addDays(bangkokNow().day, 30));
+  const [{ from, to }, setPeriod] = useState(() => fiscalPeriod(currentFiscalYear()));
   const [room,setRoom]=useState(''),[personnel,setPersonnel]=useState('');
   const [people,setPeople]=useState<{code:string;name:string}[]>([]),[optionsError,setOptionsError]=useState('');
   const [data, setData] = useState<Appointment[]>([]), [error, setError] = useState('');
@@ -42,8 +41,7 @@ export function HosxpSchedule({ api, canNotify = false }: { api: Api; canNotify?
     <p className="muted">สร้าง เลื่อน และยกเลิกนัดใน HOSxP ข้อมูลวันนัดในหน้านี้อ่านจาก HOSxP</p></div>
     <button disabled={busy} onClick={() => setTick(t => t + 1)}>โหลดวันนัดล่าสุด</button></div>
     <div className="surface"><div className="filters">
-      <Field label="ตั้งแต่วันที่นัด" type="date" value={from} onChange={e => setFrom(e.target.value)}/>
-      <Field label="ถึงวันที่นัด" type="date" value={to} onChange={e => setTo(e.target.value)}/>
+      <PeriodPicker from={from} to={to} onChange={(f, t) => setPeriod({ from: f, to: t })}/>
       <label>ห้องบริการ<select aria-label="ห้องบริการ" value={room} onChange={e=>setRoom(e.target.value)}><option value="">ทุกห้องบริการ</option>{HOSXP_ROOMS.map(r=><option key={r.code} value={r.code}>{r.name}</option>)}</select></label>
       <label>บุคลากรที่มีนัด<select aria-label="บุคลากรที่มีนัด" value={personnel} onChange={e=>setPersonnel(e.target.value)}><option value="">บุคลากรทั้งหมด</option>{people.map(d=><option key={d.code} value={d.code}>{d.name}</option>)}</select></label>
     </div>{error && <p className="error" role="alert">{error}</p>}

@@ -4,6 +4,7 @@ import { Download, Printer } from 'lucide-react';
 import { Field, Table, thaiDate, type Api } from './ui';
 import { bangkokNow, fiscalRange, fiscalYearForDate } from '@/src/domain/validation';
 import { HOSXP_ROOMS } from '@/src/domain/hosxp';
+import { PeriodPicker } from './period-picker';
 
 const STATUS: Record<string, string> = { ATTENDED: 'มาตามนัด', PENDING: 'รอตรวจ', MISSED: 'ไม่มาตามนัด' };
 type Count = { appointments: number; people: number; attended: number; pending: number; missed: number };
@@ -13,7 +14,7 @@ type Report = { summary: Count; rooms: (Count & { code: string; name: string })[
 
 export function HosxpReport({ api, canExport }: { api: Api; canExport: boolean }) {
   const year = fiscalYearForDate(bangkokNow().day), range = fiscalRange(year);
-  const [from, setFrom] = useState(range.start), [to, setTo] = useState(range.end);
+  const [{ from, to }, setPeriod] = useState({ from: range.start, to: range.end });
   const [room, setRoom] = useState(''), [status, setStatus] = useState(''), [q, setQ] = useState('');
   const [report, setReport] = useState<Report>(), [error, setError] = useState(''), [busy, setBusy] = useState(true);
   const query = new URLSearchParams(Object.entries({ from, to, room, status, q }).filter(([, v]) => v)).toString();
@@ -35,8 +36,7 @@ export function HosxpReport({ api, canExport }: { api: Api; canExport: boolean }
       {canExport && <a className="button" href={`/api/v1/exports/appointments?${query}`}><Download size={16}/>ข้อมูลนัด Excel</a>}</div></div>
     <div className="surface"><div className="filters">
       <Field label="ค้นหาบุคลากร" placeholder="ชื่อ–นามสกุล" value={q} onChange={e => setQ(e.target.value)}/>
-      <Field label="ตั้งแต่วันที่" type="date" value={from} onChange={e => setFrom(e.target.value)}/>
-      <Field label="ถึงวันที่" type="date" value={to} onChange={e => setTo(e.target.value)}/>
+      <PeriodPicker from={from} to={to} onChange={(f, t) => setPeriod({ from: f, to: t })}/>
       <label>ห้องบริการ<select aria-label="ห้องบริการ" value={room} onChange={e => setRoom(e.target.value)}><option value="">ทุกห้องบริการ</option>{HOSXP_ROOMS.map(r => <option key={r.code} value={r.code}>{r.name}</option>)}</select></label>
       <label>สถานะ<select aria-label="สถานะ" value={status} onChange={e => setStatus(e.target.value)}><option value="">ทุกสถานะ</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
     </div></div>

@@ -44,3 +44,5 @@ section[aria-label="ปฏิทินตรวจสุขภาพ"] .service-
 .notice-card-foot{margin:0;padding:12px 18px 14px 34px;font-size:12px;color:#556;background:#f7f9f8}
 .notice-when h4{margin:0 0 8px}.notice-when ul{margin:0;padding-left:18px;display:grid;gap:8px}
 .notice-card .notice-card-head small{color:rgba(255,255,255,.85);font-size:12px;margin:0}
+.notice-card-prepare{margin-top:14px;background:#fff7e6;border-radius:10px;padding:10px 12px;color:#78350f;font-size:14px}
+.notice-card-prepare strong{color:#92400e}.notice-card .notice-card-prepare ul{margin:4px 0 0;padding-left:18px;font-size:14px;color:#78350f;background:none}

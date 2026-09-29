@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { HOSPITAL_NAME, NOTICE_FOOTER, noticeLead, noticeRows, noticeTitle, type Notice, type NoticeKind } from '@/src/domain/notice';
+import { HOSPITAL_NAME, NOTICE_FOOTER, NOTICE_PREPARE, noticeLead, noticeRows, noticeTitle, type Notice, type NoticeKind } from '@/src/domain/notice';
 
 const SAMPLE: Omit<Notice, 'kind'> = { name: 'ตัวอย่าง บุคลากร', date: '2027-01-29', time: '08:30:00', service: 'แพทย์แผนไทย', location: 'ห้องบัตร', daysBefore: 2 };
 const KINDS: [NoticeKind, string][] = [['NEW', 'ลงนัดครั้งแรก'], ['REMINDER', 'ก่อนวันนัด 2 วัน'], ['CHANGED', 'เลื่อนนัด'], ['MANUAL', 'กดส่งเอง']];
@@ -14,6 +14,7 @@ export function NoticeCard({ notice }: { notice: Notice }) {
       <div className="notice-card-name">คุณ{notice.name}</div>
       <p className="notice-card-lead">{noticeLead(notice)}</p>
       <dl>{noticeRows(notice).map(([icon, label, value]) => <div key={label}><dt>{icon} {label}</dt><dd>{value}</dd></div>)}</dl>
+      <div className="notice-card-prepare"><strong>🪪 สิ่งที่ต้องนำมา</strong><ul>{NOTICE_PREPARE.map(item => <li key={item}>{item}</li>)}</ul></div>
     </div>
     <ul className="notice-card-foot">{NOTICE_FOOTER.map(line => <li key={line}>{line}</li>)}</ul>
   </div>;

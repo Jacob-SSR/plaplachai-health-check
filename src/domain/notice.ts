@@ -27,6 +27,7 @@ export function noticeRows(n: Notice): [string, string, string][] {
     ['📍', 'ติดต่อที่', n.location || HOSPITAL_NAME],
   ];
 }
+export const NOTICE_PREPARE = ['บัตรประจำตัวประชาชน'];
 export const NOTICE_FOOTER = ['กรุณามาก่อนเวลานัด 15 นาที', 'หากไม่สะดวกหรือต้องการเลื่อนนัด โปรดติดต่อเจ้าหน้าที่'];
 
 export function noticeText(n: Notice) {
@@ -40,6 +41,8 @@ export function noticeText(n: Notice) {
     '',
     ...noticeRows(n).map(([icon, label, value]) => `${icon} ${label} : ${value}`),
     '',
+    `🪪 สิ่งที่ต้องนำมา : ${NOTICE_PREPARE.join(', ')}`,
+    '',
     ...NOTICE_FOOTER.map(line => `• ${line}`),
   ].join('\n');
 }
@@ -49,11 +52,12 @@ export function noticeText(n: Notice) {
 export type OutboundMessage = { name: string; title: string; text: string; html: string; notice?: Notice };
 const escapeHtml = (v: string) => v.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 export function noticeCardText(n: Notice) {
-  return [noticeLead(n), '', ...noticeRows(n).map(([icon, label, value]) => `${icon} ${label} : ${value}`), '', ...NOTICE_FOOTER].join('\n');
+  return [noticeLead(n), '', ...noticeRows(n).map(([icon, label, value]) => `${icon} ${label} : ${value}`), '', `🪪 สิ่งที่ต้องนำมา : ${NOTICE_PREPARE.join(', ')}`, '', ...NOTICE_FOOTER].join('\n');
 }
 export function noticeHtml(n: Notice) {
   return `<div><strong>${escapeHtml(noticeTitle(n))}</strong><br/>${escapeHtml(noticeLead(n))}<br/>`
     + noticeRows(n).map(([, label, value]) => `<strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}`).join('<br/>')
+    + `<br/><br/><strong>สิ่งที่ต้องนำมา:</strong> ${escapeHtml(NOTICE_PREPARE.join(', '))}`
     + `<br/><br/>${NOTICE_FOOTER.map(escapeHtml).join('<br/>')}</div>`;
 }
 export function noticeMessage(n: Notice): OutboundMessage {
@@ -85,7 +89,10 @@ export function noticeFlex(n: Notice, logoUrl?: string) {
           { type: 'text', text: `คุณ${n.name}`, weight: 'bold', size: 'md', align: 'center', wrap: true, color: '#0F3D2E' }] },
         { type: 'text', text: noticeLead(n), size: 'sm', color: '#374151', wrap: true },
         { type: 'separator', margin: 'md' },
-        { type: 'box', layout: 'vertical', spacing: 'sm', margin: 'md', contents: noticeRows(n).map(row) }] },
+        { type: 'box', layout: 'vertical', spacing: 'sm', margin: 'md', contents: noticeRows(n).map(row) },
+        { type: 'box', layout: 'vertical', margin: 'lg', backgroundColor: '#FFF7E6', cornerRadius: '10px', paddingAll: '12px', spacing: 'xs', contents: [
+          { type: 'text', text: '🪪 สิ่งที่ต้องนำมา', weight: 'bold', size: 'sm', color: '#92400E' },
+          ...NOTICE_PREPARE.map(item => ({ type: 'text', text: `• ${item}`, size: 'sm', color: '#78350F', wrap: true }))] }] },
       footer: { type: 'box', layout: 'vertical', spacing: 'xs', paddingAll: '14px', backgroundColor: '#F7F9F8', contents:
         NOTICE_FOOTER.map(text => ({ type: 'text', text: `• ${text}`, size: 'xs', color: '#6B7280', wrap: true })) },
     },
