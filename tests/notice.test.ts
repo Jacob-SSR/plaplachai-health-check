@@ -82,3 +82,8 @@ test('preparation ticked in HOSxP replaces the generic advice; "อื่นๆ"
   assert.deepEqual(labGroups(['FBS', 'อื่นๆ']), ['การตรวจเลือด', 'การตรวจอื่นๆ']);
   assert.ok(noticeText({ ...notice, preparation: ['กรุณานำบัตรนัดมาด้วย'] }).includes('กรุณานำบัตรนัดมาด้วย'));
 });
+
+test('every notice asks for the patient record book if the person has one', () => {
+  assert.ok(noticeText(notice).includes('สมุดประจำตัวผู้ป่วย (ถ้ามี)'));
+  assert.ok(JSON.stringify(noticeFlex(notice)).includes('สมุดประจำตัวผู้ป่วย (ถ้ามี)'));
+});

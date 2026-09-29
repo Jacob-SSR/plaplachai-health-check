@@ -31,7 +31,7 @@ export function noticeRows(n: Notice): [string, string, string][] {
     ['📍', 'ติดต่อที่', n.location || HOSPITAL_NAME],
   ];
 }
-export const NOTICE_PREPARE = ['บัตรประจำตัวประชาชน'];
+export const NOTICE_PREPARE = ['บัตรประจำตัวประชาชน', 'สมุดประจำตัวผู้ป่วย (ถ้ามี)'];
 
 // LAB items grouped for a formal summary; preparation advice only for tests that need it.
 const URINE = /urine|\bUA\b|U\/A|ปัสสาวะ|microalbumin|UACR/i;
