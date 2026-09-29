@@ -1,15 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { HOSXP_ROOMS } from '../src/domain/hosxp';
 import { Field, Table, s, type Item, type Api } from './ui';
-
-export function HosxpRooms() {
-  return <><div className="section-head"><div><h2>ห้องบริการจาก HOSxP</h2>
-    <p className="muted">ใช้รหัสห้องจาก kskdepartment ที่กำหนดไว้ พร้อมใช้งานทั้ง 4 ห้อง</p></div></div>
-    <div className="surface"><Table headers={['รหัสห้อง (depcode)','ห้องบริการ']}>
-      {HOSXP_ROOMS.map(room=><tr key={room.code}><td>{room.code}</td><td>{room.name}</td></tr>)}
-    </Table></div><p className="helper">ปีงบประมาณคำนวณจากวันนัดใน oapp อัตโนมัติ เช่น 1 ตุลาคม 2569 เป็นปีงบประมาณ 2570</p></>;
-}
 
 export function HosxpPersonnel({employees,api,reload,canManage}:{employees:Item[];api:Api;reload:()=>void;canManage:boolean}) {
   const [search,setSearch]=useState(''),[status,setStatus]=useState('Y');

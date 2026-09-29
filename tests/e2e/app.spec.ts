@@ -2,7 +2,6 @@ import { test,expect } from '@playwright/test';
 import { testGuard,fixture } from '../fixture';
 import { closePool,execute } from '../../src/server/db';
 import { encrypt } from '../../src/server/crypto';
-import { bangkokNow,fiscalYearForDate } from '../../src/domain/validation';
 import { randomUUID } from 'node:crypto';
 testGuard();
 test.afterAll(closePool);
@@ -62,7 +61,7 @@ test('admin browser journey, permissions and responsive layout',async({page,requ
  await expect(page.getByText('HTTP 200 · MOPH 200',{exact:false})).toBeVisible();
  await page.screenshot({path:'test-results/test-notification.png',fullPage:true});
  await page.unroute('**/api/v1/notifications/test');
- await page.getByRole('button',{name:'ข้อมูลตั้งต้น',exact:true}).click();await expect(page.getByRole('button',{name:'เพิ่มปีงบประมาณ',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'ข้อมูลตั้งต้น',exact:true})).toHaveCount(0);
  await page.getByRole('button',{name:'นัดหมายจาก HOSxP',exact:true}).click();await expect(page.getByRole('heading',{name:'นัดหมายจาก HOSxP'})).toBeVisible();
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'test-results/dashboard-mobile.png',fullPage:true});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
@@ -72,17 +71,13 @@ test('admin browser journey, permissions and responsive layout',async({page,requ
  expect(errors).toEqual([]);
 });
 
-test('new fiscal year has all four services without a manual plan',async({page})=>{
- await fixture();const year=fiscalYearForDate(bangkokNow().day);
+test('menu has only the six HOSxP-backed sections',async({page})=>{
+ await fixture();
  await page.goto('/login');await page.getByLabel('ชื่อผู้ใช้',{exact:true}).fill(process.env.ADMIN_USERNAME!);await page.getByLabel('รหัสผ่าน',{exact:true}).fill(process.env.ADMIN_PASSWORD!);await page.getByRole('button',{name:'เข้าสู่ระบบ',exact:true}).click();
- await page.getByRole('button',{name:'ข้อมูลตั้งต้น',exact:true}).click();
- await expect(page.getByRole('button',{name:'เพิ่มปีงบประมาณ',exact:true})).toHaveCount(0);
- await expect(page.getByRole('combobox',{name:'ปีงบประมาณ',exact:true})).toHaveCount(0);
- await page.getByRole('button',{name:'ผู้มีสิทธิ์ประจำปี',exact:true}).click();
- await expect(page.getByRole('button',{name:'เพิ่มแผนการตรวจ',exact:true})).toHaveCount(0);
- await page.getByRole('button',{name:'เพิ่มผู้มีสิทธิ์',exact:true}).click();
- await expect(page.getByLabel('ปีที่จัดตารางตรวจ')).toHaveValue(`ตรวจสุขภาพบุคลากร ปี ${year}`);
- await expect(page.getByRole('combobox',{name:'ชุดตรวจประจำปี'})).toHaveCount(0);
- for(const name of ['ทันตกรรม','แผนไทย','กายภาพ','ตรวจเลือด'])await expect(page.getByRole('checkbox',{name,exact:true})).toBeChecked();
- await page.screenshot({path:'test-results/permanent-services.png',fullPage:true});
+ const nav=page.getByRole('navigation',{name:'เมนูหลัก'});
+ await expect(nav.getByRole('button')).toHaveText(['นัดหมายจาก HOSxP','บุคลากร','รายงานข้อมูลเดิม','แจ้งเตือน','บัญชีผู้ใช้','ประวัติการใช้งาน']);
+ await nav.getByRole('button',{name:'บุคลากร',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'บุคลากรจาก HOSxP'})).toBeVisible();
+ await expect(page.getByRole('button',{name:'เพิ่มบุคลากร',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'เพิ่มผู้มีสิทธิ์',exact:true})).toHaveCount(0);
 });
