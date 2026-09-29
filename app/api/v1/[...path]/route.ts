@@ -2,9 +2,9 @@ import { NextRequest,NextResponse } from 'next/server';
 import { z } from 'zod';
 import { authenticate,login,logout,requirePermission,scopeSql } from '@/src/server/auth';
 import { rows,execute,transaction } from '@/src/server/db';
-import { jsonBody,boundedBody,errorResponse,download } from '@/src/server/http';
+import { jsonBody,errorResponse,download } from '@/src/server/http';
 import { ensure,id,text } from '@/src/domain/validation';
-import { masters,employees,createEmployee,updateEmployee,setRecipient,createPlan,updatePlan,enroll,enrollMany,members,saveUser } from '@/src/server/registry';
+import { masters,employees,setRecipient,saveUser } from '@/src/server/registry';
 import { listAppointments } from '@/src/server/appointments';
 import { reports } from '@/src/server/reports';
 import { exportAppointments } from '@/src/server/excel';
@@ -12,7 +12,6 @@ import { notificationSettings,retryNotification,reminderText } from '@/src/serve
 import { audit } from '@/src/server/audit';
 import { publicCalendar } from '@/src/server/public-calendar';
 import { sendTestNotification } from '@/src/server/notification-test';
-import { importPersonnelSeed } from '@/src/server/personnel-seed';
 import { getOapp,hosxpOptions,syncHosxpPersonnel } from '@/src/server/hosxp';
 
 export const runtime='nodejs';
@@ -31,24 +30,16 @@ async function handle(req:NextRequest,{params}:{params:Promise<{path:string[]}>}
       allow('appointment.write');
       ensure(false,'กรุณาสร้างหรือเลื่อนนัดใน HOSxP ระบบนี้อ่านวันนัดจาก HOSxP เท่านั้น',410,'HOSXP_APPOINTMENTS_ONLY');
     }
+    if((route==='employees'&&method==='POST')||(path[0]==='employees'&&path.length===2&&method==='PATCH')||route==='personnel-seed'||path[0]==='plans'||path[0]==='members'){
+      allow('employee.write');
+      ensure(false,'บุคลากรและผู้มีสิทธิ์มาจาก HOSxP (ตาราง doctor) ไม่ต้องเพิ่มหรือแก้ในเว็บ',410,'HOSXP_PERSONNEL_ONLY');
+    }
     if(route==='me'&&method==='GET')result=actor;
     else if(route==='auth/logout'&&method==='POST')return await logout(req,actor);
     else if(route==='masters'&&method==='GET'){allow('master.read');result=await masters(actor);}
     else if(path[0]==='masters'&&['POST','PATCH'].includes(method)){allow('master.write');ensure(false,'ใช้ห้องบริการจาก kskdepartment ของ HOSxP ไม่ต้องเพิ่มในเว็บ',410,'HOSXP_ROOMS_ONLY');}
     else if(route==='employees'&&method==='GET'){allow('employee.read');await syncHosxpPersonnel();result=await employees(actor);}
-    else if(route==='employees'&&method==='POST'){allow('employee.write');result=await createEmployee(await jsonBody(req),actor);}
-    else if(route==='personnel-seed'&&method==='POST'){
-      allow('employee.write');ensure(req.headers.get('content-type')?.includes('application/json'),'ต้องส่ง application/json',415);
-      let body:unknown;try{body=JSON.parse((await boundedBody(req,2*1024*1024)).toString('utf8'));}catch(error){if(error&&typeof error==='object'&&'status' in error)throw error;ensure(false,'ไฟล์ข้อมูลไม่ใช่ JSON ที่ถูกต้อง');}
-      result=await importPersonnelSeed(body,actor.id);
-    }
-    else if(path[0]==='employees'&&path.length===2&&method==='PATCH'){allow('employee.write');result=await updateEmployee(id.parse(path[1]),await jsonBody(req),actor);}
     else if(path[0]==='employees'&&path[2]==='recipient'&&method==='PATCH'){allow('notification.manage');result=await setRecipient(id.parse(path[1]),await jsonBody(req),actor);}
-    else if(route==='plans'&&method==='POST'){allow('plan.write');result=await createPlan(await jsonBody(req),actor);}
-    else if(path[0]==='plans'&&path.length===2&&method==='PATCH'){allow('plan.write');result=await updatePlan(id.parse(path[1]),await jsonBody(req),actor);}
-    else if(route==='members'&&method==='GET'){allow('employee.read');result=await members(id.parse(url.get('year')),actor);}
-    else if(route==='members'&&method==='POST'){allow('roster.write');result=await enroll(await jsonBody(req),actor);}
-    else if(route==='members/bulk'&&method==='POST'){allow('roster.write');result=await enrollMany(await jsonBody(req),actor);}
     else if(route==='appointments'&&method==='GET'){allow('appointment.read');result=await listAppointments(url,actor);}
     else if(route==='hosxp/options'&&method==='GET'){allow('appointment.read');allow('employee.read');await syncHosxpPersonnel();result=await hosxpOptions(actor);}
     else if(route==='hosxp/oapp'&&method==='GET'){allow('appointment.read');allow('employee.read');await syncHosxpPersonnel();result=await getOapp(url,actor);}
