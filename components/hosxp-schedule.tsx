@@ -2,11 +2,13 @@
 import { useEffect, useState } from 'react';
 import { Table, s, thaiDate, type Api } from './ui';
 import { PeriodPicker, fiscalPeriod, currentFiscalYear } from './period-picker';
+import { APPOINTMENT_STATUS, appointmentStatus } from '@/src/domain/appointment-status';
+import { bangkokNow } from '@/src/domain/validation';
 import { HOSXP_ROOMS } from '@/src/domain/hosxp';
 
 type Appointment = { oapp_id: string; display_name: string; appointment_date: string;
   appointment_time: string | null; clinic: string | null; depcode: string | null; location: string; source_status_id: string | number | null;
-  room_name:string;doctor_code:string|null;doctor_name:string|null;fiscal_year:number };
+  room_name:string;doctor_code:string|null;doctor_name:string|null;fiscal_year:number;visited?:boolean };
 const SENT: Record<string, string> = { ACCEPTED: 'ส่งแล้ว · MOPH รับคำขอ', DRY_RUN: 'โหมดทดสอบ · ไม่ได้ส่งจริง', BLOCKED: 'ยังส่งไม่ได้', FAILED: 'ส่งไม่ผ่าน', UNKNOWN: 'ยังยืนยันผลไม่ได้', CANCELLED: 'ยกเลิก' };
 export function HosxpSchedule({ api, canNotify = false }: { api: Api; canNotify?: boolean }) {
   const [{ from, to }, setPeriod] = useState(() => fiscalPeriod(currentFiscalYear()));
@@ -14,6 +16,7 @@ export function HosxpSchedule({ api, canNotify = false }: { api: Api; canNotify?
   const [people,setPeople]=useState<{code:string;name:string}[]>([]),[optionsError,setOptionsError]=useState('');
   const [data, setData] = useState<Appointment[]>([]), [error, setError] = useState('');
   const [busy, setBusy] = useState(true), [tick, setTick] = useState(0);
+  const today = bangkokNow().day;
   const [sending, setSending] = useState(''), [sent, setSent] = useState<Record<string, string>>({});
   async function notify(a: Appointment) {
     if (!window.confirm(`ส่งแจ้งเตือนนัดให้ ${a.display_name} ตอนนี้?`)) return;
@@ -48,10 +51,11 @@ export function HosxpSchedule({ api, canNotify = false }: { api: Api; canNotify?
     {optionsError&&<p className="helper" role="status">{optionsError}</p>}
     {busy ? <p role="status">กำลังอ่านวันนัดจาก HOSxP…</p> : !error && <>
       <p className="helper">{data.length} นัด · บุคลากรจาก doctor ที่ยังปฏิบัติงาน (active=Y) จับคู่วันนัดด้วยชื่อหรือ CID</p>
-      <Table headers={['บุคลากร', 'วัน–เวลานัด / ปีงบประมาณ', 'ห้องบริการ / ผู้ให้บริการ', 'จุดติดต่อ (ไปก่อน)', 'เลขนัด / รหัสสถานะ HOSxP', ...(canNotify ? ['แจ้งเตือน'] : [])]} empty={!data.length}>
+      <Table headers={['บุคลากร', 'วัน–เวลานัด / ปีงบประมาณ', 'สถานะ', 'ห้องบริการ / ผู้ให้บริการ', 'จุดติดต่อ (ไปก่อน)', 'เลขนัด / รหัสสถานะ HOSxP', ...(canNotify ? ['แจ้งเตือน'] : [])]} empty={!data.length}>
         {data.map(a => <tr key={a.oapp_id}><td>{a.display_name}</td><td>{thaiDate(a.appointment_date)}
           <small>{a.appointment_time ? `${a.appointment_time.slice(0, 5)} น.` : 'ไม่ระบุเวลา'} · ปีงบประมาณ {a.fiscal_year}</small></td>
+          <td>{(() => { const st = appointmentStatus({ visited: !!a.visited, appointment_date: a.appointment_date }, today); return <span className={`badge status-${st.toLowerCase()}`}>{APPOINTMENT_STATUS[st]}</span>; })()}</td>
           <td>{a.room_name}<small>{a.doctor_name||a.doctor_code||'ไม่ระบุผู้ให้บริการ'}</small></td><td>{a.location || '—'}</td><td>{a.oapp_id}<small>สถานะต้นทาง: {s(a.source_status_id)||'ไม่ระบุ'}</small></td>
-          {canNotify && <td><button disabled={!!sending} onClick={() => void notify(a)}>{sending === a.oapp_id ? 'กำลังส่ง…' : 'ส่งแจ้งเตือน'}</button>{sent[a.oapp_id] && <small role="status">{sent[a.oapp_id]}</small>}</td>}</tr>)}
+          {canNotify && <td>{a.appointment_date < today ? <small>เลยวันนัดแล้ว</small> : <><button disabled={!!sending} onClick={() => void notify(a)}>{sending === a.oapp_id ? 'กำลังส่ง…' : 'ส่งแจ้งเตือน'}</button>{sent[a.oapp_id] && <small role="status">{sent[a.oapp_id]}</small>}</>}</td>}</tr>)}
       </Table></>}</div></>;
 }

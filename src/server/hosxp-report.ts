@@ -7,11 +7,9 @@ import { bangkokNow, date, ensure, fiscalRange, fiscalYearForDate } from '../dom
 import { HOSXP_ROOMS } from '../domain/hosxp';
 import { hrLookup } from './hr-personnel';
 
-export const REPORT_STATUS = { ATTENDED: 'มาตามนัด', PENDING: 'รอตรวจ', MISSED: 'ไม่มาตามนัด' } as const;
-type Status = keyof typeof REPORT_STATUS;
-export function reportStatus(a: { visited: boolean; appointment_date: string }, today = bangkokNow().day): Status {
-  return a.visited ? 'ATTENDED' : a.appointment_date >= today ? 'PENDING' : 'MISSED';
-}
+import { APPOINTMENT_STATUS, appointmentStatus } from '../domain/appointment-status';
+export const REPORT_STATUS = APPOINTMENT_STATUS;
+export const reportStatus = (a: { visited: boolean; appointment_date: string }, today = bangkokNow().day) => appointmentStatus(a, today);
 
 // Report straight from HOSxP oapp. Default period is the current fiscal year (1 Oct - 30 Sep).
 export async function hosxpReport(params: URLSearchParams, actor: Actor) {

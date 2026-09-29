@@ -7,8 +7,9 @@ import { LogIn,ChevronLeft,ChevronRight,Settings,LogOut } from 'lucide-react';
 import { Select,Table,thaiDate,type Item } from './ui';
 import { bangkokNow,fiscalYearForDate } from '../src/domain/validation';
 import { HOSXP_ROOMS } from '../src/domain/hosxp';
+import { APPOINTMENT_STATUS,type AppointmentStatus } from '../src/domain/appointment-status';
 
-type Appt={oapp_id:string;day:string;time:string;group_id:number;group_name:string;name:string;work_group:string;department:string;clinic_name:string;doctor_name:string;location:string};
+type Appt={oapp_id:string;day:string;time:string;group_id:number;group_name:string;name:string;work_group:string;department:string;clinic_name:string;doctor_name:string;location:string;status?:AppointmentStatus};
 type Data={departments:Item[];appointments:Appt[]};
 type Account={admin:boolean;name:string;csrf:string}|null;
 const groups=HOSXP_ROOMS.map(room=>({id:Number(room.code),name:room.name}));
@@ -73,12 +74,13 @@ export function PublicCalendar({account}:{account:Account}){
           </div>;})}</div></div>
       </section>
       {detail&&<section className="surface padded" aria-label="รายละเอียดนัด"><div className="section-head"><div><h2>{detail.name}</h2>
-        <p className="muted"><span className={`badge ${tone(detail.group_id)}`}>{detail.group_name}</span></p></div><div className="actions">{account?.admin&&<button className="primary" disabled={notify?.busy} onClick={()=>void sendNotice(detail)}>ส่งแจ้งเตือน LINE หมอพร้อม</button>}<button onClick={()=>setDetail(undefined)}>ปิด</button></div></div>
+        <p className="muted"><span className={`badge ${tone(detail.group_id)}`}>{detail.group_name}</span></p></div><div className="actions">{account?.admin&&detail.status!=='MISSED'&&detail.status!=='ATTENDED'&&<button className="primary" disabled={notify?.busy} onClick={()=>void sendNotice(detail)}>ส่งแจ้งเตือน LINE หมอพร้อม</button>}<button onClick={()=>setDetail(undefined)}>ปิด</button></div></div>
         <dl className="detail-list">
           <div><dt>ชื่อ</dt><dd>{detail.name}</dd></div>
           <div><dt>กลุ่มงาน</dt><dd>{detail.work_group||'ไม่ระบุ'}</dd></div>
           <div><dt>หน่วยงาน</dt><dd>{detail.department||'ไม่ระบุ'}</dd></div>
           <div><dt>วันที่นัด</dt><dd>{thaiDate(detail.day)}</dd></div>
+          <div><dt>สถานะ</dt><dd>{detail.status?<span className={`badge status-${detail.status.toLowerCase()}`}>{APPOINTMENT_STATUS[detail.status]}</span>:'—'}</dd></div>
           <div><dt>เวลานัด</dt><dd>{detail.time?`${detail.time.slice(0,5)} น.`:'ไม่ระบุเวลา'}</dd></div>
           <div><dt>คลินิกที่นัด</dt><dd>{detail.clinic_name||detail.group_name}</dd></div>
           <div><dt>ห้องบริการ</dt><dd>{detail.group_name}</dd></div>

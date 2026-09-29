@@ -58,7 +58,7 @@ export function HosxpReport({ api, canExport }: { api: Api; canExport: boolean }
           {report.rows.map(a => <tr key={a.oapp_id}><td>{a.display_name}<small>{a.work_group}</small></td>
             <td>{thaiDate(a.appointment_date)}<small>{a.appointment_time ? `${a.appointment_time.slice(0, 5)} น.` : 'ไม่ระบุเวลา'} · ปีงบประมาณ {a.fiscal_year}</small></td>
             <td>{a.room_name}<small>{a.doctor_name || 'ไม่ระบุผู้ให้บริการ'}</small></td><td>{a.location || '—'}</td>
-            <td><span className="badge">{STATUS[a.status]}</span></td></tr>)}
+            <td><span className={`badge status-${a.status.toLowerCase()}`}>{STATUS[a.status]}</span></td></tr>)}
         </Table></section>
     </>}</>;
 }
