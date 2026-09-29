@@ -1,7 +1,8 @@
 // Appointment notice sent to LINE หมอพร้อม. Plain text is always available; the Flex card is opt-in.
 export type NoticeKind = 'NEW' | 'CHANGED' | 'REMINDER' | 'MANUAL';
 export type Notice = { kind: NoticeKind; name: string; date: string; time: string | null; service: string; location: string; daysBefore?: number;
-  /** LAB item names from HOSxP (lab_app_order_service.lab_name) */ tests?: string[] };
+  /** LAB items from HOSxP (ticked note2 + LAB order form) */ tests?: string[];
+  /** Preparation instructions ticked in HOSxP (note1), hospital wording */ preparation?: string[] };
 
 export const HOSPITAL_NAME = 'โรงพยาบาลพลับพลาชัย';
 const TITLES: Record<NoticeKind, string> = {
@@ -36,13 +37,14 @@ export const NOTICE_PREPARE = ['บัตรประจำตัวประช
 const URINE = /urine|\bUA\b|U\/A|ปัสสาวะ|microalbumin|UACR/i;
 const EKG = /\bEKG\b|\bECG\b|คลื่นไฟฟ้าหัวใจ/i;
 const SPUTUM = /sputum|\bAFB\b|เสมหะ/i;
+const OTHER_ITEM = /^อื่น/;
 const XRAY = /x-?ray|\bCXR\b|chest film|เอกซเรย์|เอ็กซเรย์|ภาพรังสี/i;
 const STOOL = /stool|อุจจาระ|occult|FOBT|FIT\b/i;
 const FASTING = /FBS|FPG|glucose|น้ำตาล|chol|triglyceride|\bTG\b|HDL|LDL|lipid|ไขมัน/i;
 export function labGroups(tests: string[] = []) {
   const groups: string[] = [];
   // Only three plain groups: blood, urine, and everything else (EKG, sputum, stool, X-ray).
-  const other = [STOOL, EKG, SPUTUM, XRAY];
+  const other = [STOOL, EKG, SPUTUM, XRAY, OTHER_ITEM];
   if (tests.some(t => !URINE.test(t) && !other.some(re => re.test(t)))) groups.push('การตรวจเลือด');
   if (tests.some(t => URINE.test(t))) groups.push('การตรวจปัสสาวะ');
   if (tests.some(t => other.some(re => re.test(t)))) groups.push('การตรวจอื่นๆ');
@@ -50,6 +52,8 @@ export function labGroups(tests: string[] = []) {
 }
 export const thaiList = (items: string[]) => items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} และ${items[items.length - 1]}`;
 export function noticePreparation(n: Notice) {
+  // The hospital's own instructions from HOSxP win; the generic advice is only a fallback.
+  if (n.preparation?.length) return n.preparation;
   const tests = n.tests ?? [], steps: string[] = [];
   if (tests.some(t => FASTING.test(t))) steps.push('งดอาหารและเครื่องดื่มทุกชนิด ยกเว้นน้ำเปล่า อย่างน้อย 8 ชั่วโมงก่อนการเจาะเลือด');
   if (tests.some(t => URINE.test(t))) steps.push('เก็บตัวอย่างปัสสาวะช่วงกลางของการถ่ายปัสสาวะ ตามคำแนะนำของเจ้าหน้าที่ห้องปฏิบัติการ');

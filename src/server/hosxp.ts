@@ -43,40 +43,24 @@ export function oappRange(params: URLSearchParams, today = bangkokNow().day) {
   return { from, to };
 }
 
-// Names of the LAB tick boxes on the HOSxP appointment screen (table oapp_lab, e.g. FBS, U/A, CBC).
-let labNamesCache: { at: number; names: string[] } | undefined;
-export async function oappLabNames() {
-  if (labNamesCache && Date.now() - labNamesCache.at < 10 * 60 * 1000) return labNamesCache.names;
-  try {
-    const [found] = await hosxpPool().execute<RowDataPacket[]>({ sql: 'SELECT name FROM oapp_lab', timeout: 15000 });
-    labNamesCache = { at: Date.now(), names: found.map(r => String(r.name ?? '').trim()).filter(n => n.length > 0 && n.length <= 60) };
-  } catch (error) {
-    console.error({ code: 'HOSXP_OAPP_LAB', message: error instanceof Error ? error.message.slice(0, 200) : '' });
-    labNamesCache = { at: Date.now(), names: [] };
-  }
-  return labNamesCache.names;
-}
-const OUR_COLUMNS = new Set(['personnel_code', 'personnel_name', 'doctor_name', 'department_name', 'clinic_name', 'has_lab']);
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-// Ticked LAB items are saved somewhere in the oapp row; find the tick-box names in its text columns.
-export function tickedLabs(row: Record<string, unknown>, names: string[]) {
-  const text = Object.entries(row).filter(([key, value]) => !OUR_COLUMNS.has(key) && typeof value === 'string').map(([, value]) => value as string).join('\n');
-  if (!text) return [];
-  return names.filter(name => new RegExp(`(^|[^A-Za-z0-9])${escapeRe(name)}($|[^A-Za-z0-9])`, 'i').test(text));
-}
+// HOSxP keeps the ticked boxes of the appointment screen as lines of text in the oapp row:
+// note2 / lab_list_text = LAB items (e.g. FBS, U/A, EKG), note1 / perform_text = preparation instructions.
+const lines = (...values: unknown[]) => [...new Set(values.flatMap(v => typeof v === 'string' ? v.split(/\r?\n/) : [])
+  .map(s => s.trim()).filter(Boolean))];
+export const tickedLabs = (row: Record<string, unknown>) => lines(row.note2, row.lab_list_text);
+export const preparationNotes = (row: Record<string, unknown>) => lines(row.note1, row.perform_text).filter(s => !/^อื่น\s*ๆ?$/.test(s));
 
 export type OappFilters = { room?: string; doctor?: string; personnel?: string; oappId?: string };
 // Read only. An appointment belongs to personnel when the patient is an active doctor row,
 // matched by name (patient fname+lname = doctor.name, spaces ignored) or by a non-empty CID.
 // One person with several doctor codes is reported once per appointment.
-export async function readPersonnelOapp(range: { from: string; to: string }, filters: OappFilters = {}, read: OappReader = sourceReader, labNames?: string[]) {
+export async function readPersonnelOapp(range: { from: string; to: string }, filters: OappFilters = {}, read: OappReader = sourceReader) {
   oappRange(new URLSearchParams(range));
   if (filters.room) ensure(hosxpRoom(filters.room), 'เลือกได้เฉพาะกายภาพ LAB ทันตกรรม และแผนไทย');
   for (const value of [filters.doctor, filters.personnel, filters.oappId]) if (value) z.string().trim().min(1).max(40).parse(value);
   const roomCodes = filters.room ? [filters.room] : HOSXP_ROOMS.map(room => room.code);
   // LAB is ordered from any clinic (e.g. NCD): an appointment with a LAB order counts as a LAB appointment.
   const withLab = roomCodes.includes(LAB_ROOM);
-  const tickNames = withLab ? labNames ?? (read === sourceReader ? await oappLabNames() : []) : [];
   // With LAB included every staff appointment is read, because any clinic may order LAB.
   const rows = await read(`SELECT o.*,o.oapp_id,s.code personnel_code,s.name personnel_name,o.nextdate,o.nexttime,
     o.clinic,o.depcode,o.contact_point,o.oapp_status_id,o.update_datetime,o.visit_vn,o.doctor,d.name doctor_name,k.department department_name,c.name clinic_name,
@@ -93,7 +77,7 @@ export async function readPersonnelOapp(range: { from: string; to: string }, fil
   ensure(rows.length <= 3000, 'ข้อมูลนัดมีจำนวนมาก กรุณาเลือกช่วงวันที่สั้นลง', 422);
   const seen = new Set<string>(), result = [];
   for (const row of rows) {
-    const own = hosxpRoom(row.depcode), oappId = String(row.oapp_id), ticked = withLab ? tickedLabs(row as unknown as Record<string, unknown>, tickNames) : [];
+    const own = hosxpRoom(row.depcode), oappId = String(row.oapp_id), ticked = withLab ? tickedLabs(row as unknown as Record<string, unknown>) : [];
     const hasLab = Number(row.has_lab) === 1 || ticked.length > 0;
     const room = own && roomCodes.includes(own.code) ? own : hasLab && withLab ? hosxpRoom(LAB_ROOM)! : undefined;
     if (!room || seen.has(oappId)) continue;
@@ -111,6 +95,8 @@ export async function readPersonnelOapp(range: { from: string; to: string }, fil
       // HOSxP links the visit to the appointment when the person came (visit_vn).
       visited: String(row.visit_vn ?? '').trim() !== '',
       has_lab: hasLab, lab_ticked: ticked,
+      // Preparation instructions ticked in HOSxP (fixed hospital wording, no clinical notes).
+      prep_notes: preparationNotes(row as unknown as Record<string, unknown>),
     });
   }
   ensure(result.length <= 1000, 'ข้อมูลนัดมีจำนวนมาก กรุณาเลือกช่วงวันที่สั้นลง', 422);
@@ -159,10 +145,10 @@ export async function hosxpLabTests(oappIds: string[]) {
   }
   return map;
 }
-// Everything known about one appointment's LAB: ticked boxes plus the LAB order form.
-export async function labTestsForAppointment(oappId: string, day: string) {
+// Everything known about one appointment for its notice: LAB items (ticked + order form) and preparation.
+export async function appointmentExtras(oappId: string, day: string) {
   const [a] = await withLabTests(await readPersonnelOapp({ from: day, to: day }, { oappId }));
-  return a?.lab_tests ?? (await hosxpLabTests([oappId])).get(oappId) ?? [];
+  return { tests: a?.lab_tests ?? (await hosxpLabTests([oappId])).get(oappId) ?? [], preparation: a?.prep_notes ?? [] };
 }
 export async function withLabTests<T extends { oapp_id: string; has_lab?: boolean; lab_ticked?: string[] }>(data: T[]) {
   const lab = data.filter(a => a.has_lab);

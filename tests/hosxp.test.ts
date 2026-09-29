@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { oappRange, readPersonnelOapp, tickedLabs, type OappReader } from '../src/server/hosxp';
+import { oappRange, readPersonnelOapp, tickedLabs, preparationNotes, type OappReader } from '../src/server/hosxp';
 import { hosxpFingerprint, activeHosxpStatus, futureHosxpAppointment } from '../src/server/hosxp-sync';
 import { reminderText } from '../src/server/notifications';
 import { fiscalYearForDate } from '../src/domain/validation';
@@ -132,10 +132,13 @@ test('an appointment from any clinic with a LAB order is a LAB appointment',asyn
   assert.match(roomSql,/o\.depcode IN \(\?\)/);
 });
 
-test('LAB ticked on the HOSxP appointment screen (any clinic) makes a LAB appointment with those items',async()=>{
+test('LAB and preparation ticked on the HOSxP appointment screen come from note2 and note1 (any clinic)',async()=>{
+  // Shape of a real oapp row: ticked LAB items in note2, ticked preparation lines in note1.
   const data=await readPersonnelOapp(range,{},async()=>[
-    {...appointment,oapp_id:'obst',depcode:'099',has_lab:0,lab_list:'FBS,U/A'} as never,
-    {...appointment,oapp_id:'plain',depcode:'099',has_lab:0,note:'Creatinine clearance discussion'} as never],['FBS','U/A','Cr','CBC']);
+    {...appointment,oapp_id:'obst',depcode:'',has_lab:0,note:'ทดสอบ',note1:'งดน้ำและอาหาร 6-8 ชั่วโมง (หลังเที่ยงคืน)\nกรุณานำบัตรนัดมาด้วย\nอื่น ๆ\n',note2:'FBS\nU/A\n'} as never,
+    {...appointment,oapp_id:'plain',depcode:'',has_lab:0,note:'FBS talk only',note2:null} as never]);
   assert.deepEqual(data.map(a=>[a.oapp_id,a.room_name,a.lab_ticked]),[['obst','LAB',['FBS','U/A']]]);
-  assert.deepEqual(tickedLabs({personnel_name:'CBC ชื่อคน',x:'cbc; FBS'},['CBC','FBS']),['CBC','FBS']);
+  assert.deepEqual(data[0].prep_notes,['งดน้ำและอาหาร 6-8 ชั่วโมง (หลังเที่ยงคืน)','กรุณานำบัตรนัดมาด้วย']);
+  assert.deepEqual(tickedLabs({note2:'CBC\r\nEKG\r\n',lab_list_text:'CBC'}),['CBC','EKG']);
+  assert.deepEqual(preparationNotes({note1:null,perform_text:'จิบน้ำได้'}),['จิบน้ำได้']);
 });

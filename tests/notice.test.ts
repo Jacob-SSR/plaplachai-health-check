@@ -74,3 +74,11 @@ test('only blood, urine and other examinations are named; EKG, sputum and X-ray 
   assert.deepEqual(labGroups(['CBC', 'UA', 'EKG']), ['การตรวจเลือด', 'การตรวจปัสสาวะ', 'การตรวจอื่นๆ']);
   assert.ok(text.includes('เก็บเสมหะ'));
 });
+
+test('preparation ticked in HOSxP replaces the generic advice; "อื่นๆ" LAB is an other examination', () => {
+  const text = noticeText({ ...notice, service: 'LAB', tests: ['FBS', 'อื่นๆ'], preparation: ['งดน้ำและอาหาร 10-12 ชั่วโมง (หลัง 2 ทุ่ม)'] });
+  assert.ok(text.includes('งดน้ำและอาหาร 10-12 ชั่วโมง (หลัง 2 ทุ่ม)'));
+  assert.ok(!text.includes('อย่างน้อย 8 ชั่วโมง'));
+  assert.deepEqual(labGroups(['FBS', 'อื่นๆ']), ['การตรวจเลือด', 'การตรวจอื่นๆ']);
+  assert.ok(noticeText({ ...notice, preparation: ['กรุณานำบัตรนัดมาด้วย'] }).includes('กรุณานำบัตรนัดมาด้วย'));
+});
