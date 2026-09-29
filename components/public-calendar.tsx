@@ -15,7 +15,7 @@ const groups=HOSXP_ROOMS.map(room=>({id:Number(room.code),name:room.name}));
 export function PublicCalendar({account}:{account:Account}){
   const [data,setData]=useState<Data>({departments:[],appointments:[]});
   const [month,setMonth]=useState(()=>bangkokNow().day.slice(0,7));
-  const [filters,setFilters]=useState<Record<string,string>>({}),[selected,setSelected]=useState(''),[detail,setDetail]=useState<Appt>(),[error,setError]=useState(''),[busy,setBusy]=useState(true);
+  const [filters,setFilters]=useState<Record<string,string>>({}),[selected,setSelected]=useState(''),[detail,setDetail]=useState<Appt>(),[notify,setNotify]=useState<{id:string;text:string;busy:boolean}>(),[error,setError]=useState(''),[busy,setBusy]=useState(true);
   const query=new URLSearchParams({month,...Object.fromEntries(Object.entries(filters).filter(([,v])=>v))}).toString();
   useEffect(()=>{
     const controller=new AbortController();
@@ -36,7 +36,15 @@ export function PublicCalendar({account}:{account:Account}){
   const shortGroup=(g:string)=>g.replace(/^กลุ่มงาน/,'').trim()||'ไม่ระบุกลุ่มงาน';
   const byGroup=(list:Appt[])=>{const m=new Map<string,Appt[]>();for(const a of list){const k=shortGroup(a.work_group);m.set(k,[...(m.get(k)??[]),a]);}return [...m.entries()].sort(([a],[b])=>a.localeCompare(b,'th'));};
   const MAX_IN_DAY=6;
-  const open=(a:Appt)=>{setSelected(a.day);setDetail(a);};
+  const open=(a:Appt)=>{setSelected(a.day);setDetail(a);setNotify(undefined);};
+  const SENT:Record<string,string>={ACCEPTED:'ส่งแล้ว · MOPH รับคำขอ',BLOCKED:'ยังส่งไม่ได้',FAILED:'ส่งไม่ผ่าน',UNKNOWN:'ยังยืนยันผลไม่ได้ ตรวจ LINE ของผู้รับก่อนส่งซ้ำ',CANCELLED:'ยกเลิก'};
+  async function sendNotice(a:Appt){
+    if(!account||!window.confirm(`ส่งแจ้งเตือนนัดให้ ${a.name} ตอนนี้?`))return;
+    setNotify({id:a.oapp_id,text:'กำลังส่ง…',busy:true});
+    try{const r=await fetch('/api/v1/notifications/manual',{method:'POST',headers:{'Content-Type':'application/json','x-csrf-token':account.csrf},body:JSON.stringify({oappId:a.oapp_id})});
+      const b=await r.json();if(!r.ok)throw Error(b.message);setNotify({id:a.oapp_id,text:`${SENT[b.status]??b.status}${b.safe_error?` · ${b.safe_error}`:''}`,busy:false});}
+    catch(e){setNotify({id:a.oapp_id,text:e instanceof Error?e.message:'ส่งไม่สำเร็จ',busy:false});}
+  }
   return <div className="public-shell"><header className="public-header">
     <Link href="/" className="brand"><HospitalLogo/><div>โรงพยาบาลพลับพลาชัย<small>ตารางตรวจสุขภาพบุคลากร</small></div></Link>
     <div className="actions">{account?.admin&&<Link className="button primary" href="/admin"><Settings size={17}/>จัดการระบบ</Link>}
@@ -65,7 +73,7 @@ export function PublicCalendar({account}:{account:Account}){
           </div>;})}</div></div>
       </section>
       {detail&&<section className="surface padded" aria-label="รายละเอียดนัด"><div className="section-head"><div><h2>{detail.name}</h2>
-        <p className="muted"><span className={`badge ${tone(detail.group_id)}`}>{detail.group_name}</span></p></div><button onClick={()=>setDetail(undefined)}>ปิด</button></div>
+        <p className="muted"><span className={`badge ${tone(detail.group_id)}`}>{detail.group_name}</span></p></div><div className="actions">{account?.admin&&<button className="primary" disabled={notify?.busy} onClick={()=>void sendNotice(detail)}>ส่งแจ้งเตือน LINE หมอพร้อม</button>}<button onClick={()=>setDetail(undefined)}>ปิด</button></div></div>
         <dl className="detail-list">
           <div><dt>ชื่อ</dt><dd>{detail.name}</dd></div>
           <div><dt>กลุ่มงาน</dt><dd>{detail.work_group||'ไม่ระบุ'}</dd></div>
@@ -76,7 +84,7 @@ export function PublicCalendar({account}:{account:Account}){
           <div><dt>ห้องบริการ</dt><dd>{detail.group_name}</dd></div>
           <div><dt>ผู้ให้บริการ</dt><dd>{detail.doctor_name||'ไม่ระบุ'}</dd></div>
           <div><dt>จุดติดต่อ (ไปก่อน)</dt><dd>{detail.location||'—'}</dd></div>
-        </dl></section>}
+        </dl>{notify?.id===detail.oapp_id&&<p className="notice" role="status">{notify.text}</p>}</section>}
       <section className="surface padded"><div className="section-head"><div><h2>{selected?`นัดวันที่ ${thaiDate(selected)}`:'นัดหมายในเดือนนี้'}</h2>
         <p className="muted">{busy?'กำลังโหลด':error?'ยังไม่สามารถยืนยันจำนวนนัด':`${list.length} นัดหมาย`} · เวลาไทย</p></div>{selected&&<button onClick={()=>{setSelected('');setDetail(undefined);}}>ดูทั้งเดือน</button>}</div>
         {!busy&&!error&&<><Table headers={['วันที่','เวลา','ชื่อ','กลุ่มงาน','คลินิก / ห้องบริการ','จุดติดต่อ (ไปก่อน)']} empty={!list.length}>{list.map(a=><tr key={a.oapp_id} className="clickable-row" onClick={()=>open(a)}><td>{thaiDate(a.day)}</td><td>{a.time?`${a.time.slice(0,5)} น.`:'ไม่ระบุเวลา'}</td><td><button className="link-button" onClick={()=>open(a)}>{a.name}</button></td><td>{a.work_group||'—'}</td><td><span className={`badge ${tone(a.group_id)}`}>{a.clinic_name||a.group_name}</span></td><td>{a.location||'—'}</td></tr>)}</Table>
