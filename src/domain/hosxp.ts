@@ -5,6 +5,7 @@ export const HOSXP_ROOMS = [
   { code: '019', name: 'ทันตกรรม' },
   { code: '023', name: 'แพทย์แผนไทย' },
 ] as const;
+export const LAB_ROOM = '006';
 export function hosxpRoom(code: unknown) {
   return HOSXP_ROOMS.find(room => room.code === code);
 }

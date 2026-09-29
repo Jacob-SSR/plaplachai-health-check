@@ -118,3 +118,14 @@ test('report status comes from the HOSxP visit link and the appointment date',()
   assert.equal(reportStatus({visited:false,appointment_date:'2027-01-29'},'2026-09-29'),'PENDING');
   assert.equal(reportStatus({visited:false,appointment_date:'2026-09-28'},'2026-09-29'),'MISSED');
 });
+
+test('an appointment from any clinic with a LAB order is a LAB appointment',async()=>{
+  let sql='';
+  const data=await readPersonnelOapp(range,{},async s=>{sql=s;return [
+    {...appointment,oapp_id:'ncd',depcode:'099',has_lab:1},{...appointment,oapp_id:'other',depcode:'099',has_lab:0},{...appointment,oapp_id:'dental',depcode:'019',has_lab:1}];});
+  assert.match(sql,/OR EXISTS\(SELECT 1 FROM lab_app_head lx WHERE lx\.oapp_id=o\.oapp_id\)/);
+  assert.deepEqual(data.map(a=>[a.oapp_id,a.room_name,a.has_lab]),[['ncd','LAB',true],['dental','ทันตกรรม',true]]);
+  let roomSql='';
+  await readPersonnelOapp(range,{room:'019'},async s=>{roomSql=s;return [];});
+  assert.ok(!roomSql.includes('OR EXISTS'));
+});

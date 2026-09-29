@@ -66,7 +66,7 @@ export async function dispatchOne(provider:NotificationProvider=new MophAlertPro
     await execute("UPDATE notification_jobs SET status='SENDING',attempt_count=attempt_count+1,lease_until=DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 2 MINUTE) WHERE id=?",[job.id],db);
     await execute("INSERT INTO notification_attempts(job_id,attempt_no,outcome) VALUES(?,?,'STARTED')",[job.id,Number(job.attempt_count)+1],db);
     return {skipped:false,jobId:String(job.id),attemptNo:Number(job.attempt_count)+1,cid,message:job.hosxp_oapp_id?noticeMessage(noticeFromRow(a,String(job.kind??'NEW'),job.days_before==null?undefined:Number(job.days_before),
-      a.depcode==='006'?(await hosxpLabTests([String(job.hosxp_oapp_id)])).get(String(job.hosxp_oapp_id)):undefined)):noticeText(noticeFromRow(a))};
+      (await hosxpLabTests([String(job.hosxp_oapp_id)])).get(String(job.hosxp_oapp_id)))):noticeText(noticeFromRow(a))};
   });
   if(!claimed)return false;if(claimed.skipped)return true;
   const delivery=await provider.send(claimed.cid!,claimed.message!);
