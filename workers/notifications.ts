@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { pool,execute } from '../src/server/db';
-import { dispatchOne } from '../src/server/notifications';
+import { dispatchOne,scheduleHosxpReminders } from '../src/server/notifications';
 import { syncHosxpAppointments } from '../src/server/hosxp-sync';
 import { closeHosxpPool, syncHosxpPersonnel } from '../src/server/hosxp';
 let stopping=false;
@@ -8,6 +8,7 @@ process.on('SIGINT',()=>{stopping=true;});process.on('SIGTERM',()=>{stopping=tru
 async function tick() {
   await syncHosxpPersonnel();
   await syncHosxpAppointments();
+  await scheduleHosxpReminders();
   for(let n=0;n<100&&!stopping;n++){if(!await dispatchOne())break;await new Promise(resolve=>setTimeout(resolve,1000));}
   await execute("UPDATE import_batches SET status='EXPIRED' WHERE status IN ('READY','INVALID') AND expires_at<UTC_TIMESTAMP()");
   // Staging contains scheduling data only. Keep audit/counts, remove expired payloads.

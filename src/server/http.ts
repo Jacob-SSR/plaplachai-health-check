@@ -15,13 +15,15 @@ export async function jsonBody(req:Request) {
 }
 export function errorResponse(error:unknown) {
   const requestId=randomUUID();
+  // AppError messages never contain CID or patient data, so a 5xx is safe to log for diagnosis.
+  if(error instanceof AppError&&error.status>=500)console.error({requestId,code:error.code,message:error.message});
   if(error instanceof AppError)return NextResponse.json({code:error.code,message:error.message,requestId},{status:error.status});
   if(error instanceof ZodError)return NextResponse.json({code:'VALIDATION',message:'กรุณาตรวจสอบข้อมูลในแบบฟอร์ม',fieldErrors:error.issues.map(e=>({field:e.path.join('.'),message:e.message})),requestId},{status:422});
   const code=error&&typeof error==='object'&&'code' in error?String(error.code):'';
   if(code==='ER_DUP_ENTRY')return NextResponse.json({code:'DUPLICATE',message:'มีรหัสหรือรายการนี้อยู่แล้ว',requestId},{status:409});
   if(code==='ER_NO_REFERENCED_ROW_2'||code==='ER_ROW_IS_REFERENCED_2')return NextResponse.json({code:'RELATIONSHIP',message:'ข้อมูลอ้างอิงไม่มีอยู่หรือมีประวัติใช้งานแล้ว',requestId},{status:409});
   if(code==='ER_LOCK_DEADLOCK'||code==='ER_LOCK_WAIT_TIMEOUT')return NextResponse.json({code:'BUSY',message:'มีการแก้ไขข้อมูลพร้อมกัน กรุณาลองใหม่',requestId},{status:409});
-  console.error({requestId,code:code||'INTERNAL_ERROR'});
+  console.error({requestId,code:code||'INTERNAL_ERROR',message:error instanceof Error?error.message.slice(0,300):undefined});
   return NextResponse.json({code:'UNAVAILABLE',message:'ระบบยังไม่พร้อม กรุณาตรวจการเชื่อมต่อฐานข้อมูลหรือติดต่อผู้ดูแล',requestId},{status:503});
 }
 export function download(buffer:Buffer,filename:string) {

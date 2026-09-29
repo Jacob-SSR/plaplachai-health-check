@@ -2,17 +2,17 @@ import { NextRequest,NextResponse } from 'next/server';
 import { z } from 'zod';
 import { authenticate,login,logout,requirePermission,scopeSql } from '@/src/server/auth';
 import { rows,execute,transaction } from '@/src/server/db';
-import { jsonBody,errorResponse,download } from '@/src/server/http';
+import { jsonBody,boundedBody,errorResponse,download } from '@/src/server/http';
 import { ensure,id,text } from '@/src/domain/validation';
 import { masters,employees,setRecipient,saveUser } from '@/src/server/registry';
 import { listAppointments } from '@/src/server/appointments';
-import { reports } from '@/src/server/reports';
-import { exportAppointments } from '@/src/server/excel';
-import { notificationSettings,retryNotification,reminderText } from '@/src/server/notifications';
+import { hosxpReport,hosxpReportExcel } from '@/src/server/hosxp-report';
+import { hrLookup,importHrPersonnel } from '@/src/server/hr-personnel';
+import { notificationSettings,retryNotification,reminderText,sendManualNotification } from '@/src/server/notifications';
 import { audit } from '@/src/server/audit';
 import { publicCalendar } from '@/src/server/public-calendar';
 import { sendTestNotification } from '@/src/server/notification-test';
-import { getOapp,hosxpOptions,syncHosxpPersonnel } from '@/src/server/hosxp';
+import { getOappWithLab,hosxpOptions,syncHosxpPersonnel } from '@/src/server/hosxp';
 
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -38,15 +38,16 @@ async function handle(req:NextRequest,{params}:{params:Promise<{path:string[]}>}
     else if(route==='auth/logout'&&method==='POST')return await logout(req,actor);
     else if(route==='masters'&&method==='GET'){allow('master.read');result=await masters(actor);}
     else if(path[0]==='masters'&&['POST','PATCH'].includes(method)){allow('master.write');ensure(false,'ใช้ห้องบริการจาก kskdepartment ของ HOSxP ไม่ต้องเพิ่มในเว็บ',410,'HOSXP_ROOMS_ONLY');}
-    else if(route==='employees'&&method==='GET'){allow('employee.read');await syncHosxpPersonnel();result=await employees(actor);}
+    else if(route==='employees'&&method==='GET'){allow('employee.read');await syncHosxpPersonnel();const hr=await hrLookup();result=(await employees(actor)).map(e=>{const info=hr(e.hosxp_doctor_code as string|null,String(e.hosxp_doctor_name??''));return {...e,hr_position:info?.position??'',hr_department:info?.department??'',hr_work_group:info?.work_group??''};});}
+    else if(route==='hr-personnel'&&method==='POST'){allow('employee.write');result=await importHrPersonnel(await boundedBody(req,10*1024*1024),actor.id);}
     else if(path[0]==='employees'&&path[2]==='recipient'&&method==='PATCH'){allow('notification.manage');result=await setRecipient(id.parse(path[1]),await jsonBody(req),actor);}
     else if(route==='appointments'&&method==='GET'){allow('appointment.read');result=await listAppointments(url,actor);}
     else if(route==='hosxp/options'&&method==='GET'){allow('appointment.read');allow('employee.read');await syncHosxpPersonnel();result=await hosxpOptions(actor);}
-    else if(route==='hosxp/oapp'&&method==='GET'){allow('appointment.read');allow('employee.read');await syncHosxpPersonnel();result=await getOapp(url,actor);}
+    else if(route==='hosxp/oapp'&&method==='GET'){allow('appointment.read');allow('employee.read');await syncHosxpPersonnel();result=await getOappWithLab(url,actor);}
     else if(route==='calendar'&&method==='GET'){allow('appointment.read');result=await listAppointments(url,actor,true);}
-    else if(route==='reports'&&method==='GET'){allow('report.read');id.parse(url.get('year'));result=await reports(url,actor);}
+    else if(route==='reports'&&method==='GET'){allow('report.read');await syncHosxpPersonnel();result=await hosxpReport(url,actor);}
     else if(route==='imports'&&method==='GET'){allow('import.execute');result=await rows('SELECT * FROM import_batches WHERE imported_by=? ORDER BY created_at DESC LIMIT 100',[actor.id]);}
-    else if(route==='exports/appointments'&&method==='GET'){allow('export.execute');return download(await exportAppointments(url,actor),'ppc-appointments.xlsx');}
+    else if(route==='exports/appointments'&&method==='GET'){allow('report.read');allow('export.execute');await syncHosxpPersonnel();const file=await hosxpReportExcel(url,actor);await transaction(db=>audit(db,actor.id,'EXPORT','hosxp_report',null,{from:url.get('from'),to:url.get('to')}));return download(file,'hosxp-appointments.xlsx');}
     else if(route==='notification-settings'&&method==='GET'){allow('notification.manage');result=await notificationSettings();}
     else if(route==='notification-settings'&&method==='PATCH'){
       allow('notification.manage');const input=z.object({enabled:z.boolean(),mode:z.enum(['DRY_RUN','LIVE']),version:id,days:z.array(z.number().int().min(0).max(30)).max(10),confirmLive:z.boolean().default(false)}).parse(await jsonBody(req));
@@ -62,13 +63,14 @@ async function handle(req:NextRequest,{params}:{params:Promise<{path:string[]}>}
     else if(route==='notifications'&&method==='GET'){
       allow('notification.read');const scope=scopeSql(actor);const legacy=url.get('year')?await rows(`SELECT j.*,m.display_name,a.appointment_date,a.appointment_time,r.days_before FROM notification_jobs j JOIN health_check_appointments a ON a.id=j.appointment_id JOIN fiscal_year_members m ON m.id=a.member_id JOIN notification_rules r ON r.id=j.rule_id WHERE a.fiscal_year_id=? AND ${scope.sql} ORDER BY j.created_at DESC LIMIT 200`,[id.parse(url.get('year')),...scope.params]):[];
       const currentScope=scopeSql(actor,'assignment.department_id');
-      const hosxp=await rows(`SELECT j.*,CONCAT(e.prefix,e.first_name,' ',e.last_name) display_name,a.appointment_date,a.appointment_time,NULL days_before
-        FROM notification_jobs j JOIN hosxp_appointments a ON a.oapp_id=j.hosxp_oapp_id JOIN employees e ON e.id=a.employee_id
+      const hosxp=await rows(`SELECT j.*,COALESCE(e.hosxp_doctor_name,CONCAT(e.prefix,e.first_name,' ',e.last_name)) display_name,a.appointment_date,a.appointment_time,r.days_before
+        FROM notification_jobs j JOIN hosxp_appointments a ON a.oapp_id=j.hosxp_oapp_id JOIN employees e ON e.id=a.employee_id LEFT JOIN notification_rules r ON r.id=j.rule_id
         WHERE ${actor.roles.includes('ADMIN')?'1=1':`EXISTS(SELECT 1 FROM employee_assignments assignment WHERE assignment.employee_id=e.id AND ${currentScope.sql})`}
         ORDER BY j.created_at DESC LIMIT 200`,currentScope.params);
       result=[...legacy,...hosxp].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).slice(0,200);
     }
     else if(path[0]==='notifications'&&path[2]==='retry'&&method==='POST'){allow('notification.manage');const input=z.object({reason:text(500),acknowledgeUnknown:z.boolean().default(false)}).parse(await jsonBody(req));result=await retryNotification(z.uuid().parse(path[1]),input.reason,input.acknowledgeUnknown,actor);}
+    else if(route==='notifications/manual'&&method==='POST'){allow('notification.manage');const input=z.object({oappId:z.string().trim().min(1).max(64)}).parse(await jsonBody(req));await syncHosxpPersonnel();result=await sendManualNotification(input.oappId,actor);}
     else if(route==='notifications/test'&&method==='POST'){allow('notification.manage');result=await sendTestNotification(await jsonBody(req),actor);}
     else if(route==='notifications/preview'&&method==='POST'){allow('notification.manage');const input=z.object({appointmentId:id}).parse(await jsonBody(req));const [a]=await rows('SELECT appointment_date,appointment_time,location FROM health_check_appointments WHERE id=?',[input.appointmentId]);ensure(a,'ไม่พบนัด',404);result={message:reminderText(a),sent:false};}
     else if(route==='audit'&&method==='GET'){allow('audit.read');result=await rows('SELECT a.id,a.action,a.entity_type,a.entity_id,a.changes,a.created_at,u.display_name actor FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_user_id ORDER BY a.id DESC LIMIT 200');}

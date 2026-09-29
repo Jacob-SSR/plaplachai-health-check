@@ -15,11 +15,20 @@ test('doctor Y is employed, N/null are inactive; invalid CID does not hide a per
   assert.equal(people.length,4);
 });
 
-test('ambiguous personnel identities stop synchronization without revealing CID',()=>{
+test('one person with several doctor codes keeps the CID on the active code and does not stop the sync',()=>{
+  const cid='1234567890121';
+  const people=normalizePersonnel([
+    {code:'A',name:'บุคลากรสมมติ',cid,active:'N'},
+    {code:'B',name:'บุคลากรสมมติ',cid,active:'Y'},
+    {code:'C',name:'บุคลากรสมมติ',cid,active:'Y'},
+    {code:'D',name:'',cid:null,active:'Y'},
+  ]);
+  assert.deepEqual(people.map(p=>[p.code,p.cid]),[['A',null],['B',cid],['C',null]]);
+});
+
+test('duplicate doctor code still stops synchronization without revealing CID',()=>{
   const person={code:'A',name:'บุคลากรสมมติ',cid:'1234567890121',active:'Y'};
-  for(const next of [{...person,code:'B'}, {...person,cid:null}]) {
-    assert.throws(()=>normalizePersonnel([person,next]), error=>{
-      assert.ok(error instanceof Error);assert.ok(!error.message.includes(person.cid));return true;
-    });
-  }
+  assert.throws(()=>normalizePersonnel([person,{...person,cid:null}]), error=>{
+    assert.ok(error instanceof Error);assert.ok(!error.message.includes(person.cid));return true;
+  });
 });
