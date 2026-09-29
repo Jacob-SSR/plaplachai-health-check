@@ -1,5 +1,23 @@
 export type Delivery={outcome:'ACCEPTED'|'REJECTED'|'UNKNOWN'|'NOT_SENT';httpStatus?:number;providerCode?:string;safeError?:string};
-export interface NotificationProvider {send(cid:string,text:string):Promise<Delivery>}
+import { noticeFlex,plainMessage,type OutboundMessage } from '../domain/notice';
+export interface NotificationProvider {send(cid:string,message:string|OutboundMessage):Promise<Delivery>}
+// Modes (MOPH_API_MODE):
+//  flex (default)  our own LINE Flex card with the hospital logo via /alert/v3.1/messages;
+//                  if MOPH rejects it, the same notice is sent once as the MOPH Template instead.
+//  template        MOPH Alert Template 3.1 card (hospital logo from MOPH CMS) via /alert/v3.1/template.
+//  freeform        plain LINE text via /alert/v3.1/messages.
+export function publicLogoUrl() {
+  const explicit=process.env.PUBLIC_LOGO_URL?.trim();if(explicit?.startsWith('https://'))return explicit;
+  const origin=process.env.APP_ORIGIN?.trim();return origin?.startsWith('https://')?`${origin.replace(/\/$/,'')}/hospital-logo.png`:undefined;
+}
+export function mophMode(){const m=process.env.MOPH_API_MODE?.trim();return m==='template'||m==='freeform'?m:'flex';}
+export function mophRequest(cid:string,message:OutboundMessage,mode:string=mophMode()){
+  const base={message_title:message.title,message_text:message.title,message_type:'HPT'};
+  if(mode==='flex'&&message.notice)return {url:'https://morpromt2c.moph.go.th/alert/v3.1/messages',body:{cid:[cid],messages:[noticeFlex(message.notice,publicLogoUrl())],...base,message_html:message.html}};
+  if(mode==='freeform'||mode==='flex')return {url:'https://morpromt2c.moph.go.th/alert/v3.1/messages',body:{cid:[cid],messages:[{type:'text',text:message.name?`คุณ${message.name}\n${message.text}`:message.text}],...base}};
+  return {url:'https://morpromt2c.moph.go.th/alert/v3.1/template',body:{cid,name:message.name||'บุคลากรโรงพยาบาลพลับพลาชัย',template:process.env.MOPH_TEMPLATE_NAME?.trim()||'ยินดีต้อนรับ',
+    header:message.title,text:message.text,...base,message_html:message.html}};
+}
 export function classifyResponse(httpStatus:number,body:unknown):Delivery {
   const rawCode=body&&typeof body==='object'&&'message_code' in body?String(body.message_code):undefined;
   const code=rawCode&&/^\d{3}$/.test(rawCode)?rawCode:undefined;
@@ -22,15 +40,22 @@ export function classifyResponse(httpStatus:number,body:unknown):Delivery {
 }
 export class MophAlertProvider implements NotificationProvider {
   constructor(private transport:typeof fetch=fetch){}
-  async send(cid:string,text:string):Promise<Delivery> {
+  async send(cid:string,input:string|OutboundMessage):Promise<Delivery> {
+    const message=typeof input==='string'?plainMessage(input):input,mode=mophMode();
+    const first=await this.post(cid,message,mode);
+    // Only a definite rejection falls back; UNKNOWN may already have been delivered.
+    if(mode==='flex'&&message.notice&&first.outcome==='REJECTED')return this.post(cid,message,'template');
+    return first;
+  }
+  private async post(cid:string,message:OutboundMessage,mode:string):Promise<Delivery> {
     const client=process.env.MOPH_CLIENT_KEY?.trim(),secret=process.env.MOPH_SECRET_KEY?.trim();
     if(process.env.MOPH_LIVE_ENABLED!=='true'||!client||!secret)return {outcome:'NOT_SENT',safeError:'ยังไม่เปิด live หรือยังไม่ได้ตั้ง credential ฝั่ง server'};
     try {
       const headers:Record<string,string>={'Content-Type':'application/json','client-key':client,'secret-key':secret};
       if(process.env.MOPH_BEARER_TOKEN?.trim())headers.Authorization=`Bearer ${process.env.MOPH_BEARER_TOKEN.trim()}`;
-      const response=await this.transport('https://morpromt2c.moph.go.th/alert/v3.1/messages',{
-        method:'POST',headers,redirect:'error',signal:AbortSignal.timeout(15000),
-        body:JSON.stringify({cid:[cid],messages:[{type:'text',text}],message_title:'แจ้งเตือนนัดตรวจสุขภาพ',message_text:'นัดตรวจสุขภาพบุคลากร',message_type:'HPT'}),
+      const request=mophRequest(cid,message,mode);
+      const response=await this.transport(request.url,{
+        method:'POST',headers,redirect:'error',signal:AbortSignal.timeout(15000),body:JSON.stringify(request.body),
       });
       const reader=response.body?.getReader();const chunks:Uint8Array[]=[];let size=0;
       if(reader)while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>65536){await reader.cancel();return {outcome:'UNKNOWN',httpStatus:response.status,safeError:'รูปแบบคำตอบจาก provider ไม่ตรงที่คาด'};}chunks.push(value);}

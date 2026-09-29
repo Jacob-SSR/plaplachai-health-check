@@ -8,7 +8,7 @@ import { masters,employees,setRecipient,saveUser } from '@/src/server/registry';
 import { listAppointments } from '@/src/server/appointments';
 import { hosxpReport,hosxpReportExcel } from '@/src/server/hosxp-report';
 import { hrLookup,importHrPersonnel } from '@/src/server/hr-personnel';
-import { notificationSettings,retryNotification,reminderText } from '@/src/server/notifications';
+import { notificationSettings,retryNotification,reminderText,sendManualNotification } from '@/src/server/notifications';
 import { audit } from '@/src/server/audit';
 import { publicCalendar } from '@/src/server/public-calendar';
 import { sendTestNotification } from '@/src/server/notification-test';
@@ -63,13 +63,14 @@ async function handle(req:NextRequest,{params}:{params:Promise<{path:string[]}>}
     else if(route==='notifications'&&method==='GET'){
       allow('notification.read');const scope=scopeSql(actor);const legacy=url.get('year')?await rows(`SELECT j.*,m.display_name,a.appointment_date,a.appointment_time,r.days_before FROM notification_jobs j JOIN health_check_appointments a ON a.id=j.appointment_id JOIN fiscal_year_members m ON m.id=a.member_id JOIN notification_rules r ON r.id=j.rule_id WHERE a.fiscal_year_id=? AND ${scope.sql} ORDER BY j.created_at DESC LIMIT 200`,[id.parse(url.get('year')),...scope.params]):[];
       const currentScope=scopeSql(actor,'assignment.department_id');
-      const hosxp=await rows(`SELECT j.*,CONCAT(e.prefix,e.first_name,' ',e.last_name) display_name,a.appointment_date,a.appointment_time,NULL days_before
-        FROM notification_jobs j JOIN hosxp_appointments a ON a.oapp_id=j.hosxp_oapp_id JOIN employees e ON e.id=a.employee_id
+      const hosxp=await rows(`SELECT j.*,COALESCE(e.hosxp_doctor_name,CONCAT(e.prefix,e.first_name,' ',e.last_name)) display_name,a.appointment_date,a.appointment_time,r.days_before
+        FROM notification_jobs j JOIN hosxp_appointments a ON a.oapp_id=j.hosxp_oapp_id JOIN employees e ON e.id=a.employee_id LEFT JOIN notification_rules r ON r.id=j.rule_id
         WHERE ${actor.roles.includes('ADMIN')?'1=1':`EXISTS(SELECT 1 FROM employee_assignments assignment WHERE assignment.employee_id=e.id AND ${currentScope.sql})`}
         ORDER BY j.created_at DESC LIMIT 200`,currentScope.params);
       result=[...legacy,...hosxp].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).slice(0,200);
     }
     else if(path[0]==='notifications'&&path[2]==='retry'&&method==='POST'){allow('notification.manage');const input=z.object({reason:text(500),acknowledgeUnknown:z.boolean().default(false)}).parse(await jsonBody(req));result=await retryNotification(z.uuid().parse(path[1]),input.reason,input.acknowledgeUnknown,actor);}
+    else if(route==='notifications/manual'&&method==='POST'){allow('notification.manage');const input=z.object({oappId:z.string().trim().min(1).max(64)}).parse(await jsonBody(req));result=await sendManualNotification(input.oappId,actor);}
     else if(route==='notifications/test'&&method==='POST'){allow('notification.manage');result=await sendTestNotification(await jsonBody(req),actor);}
     else if(route==='notifications/preview'&&method==='POST'){allow('notification.manage');const input=z.object({appointmentId:id}).parse(await jsonBody(req));const [a]=await rows('SELECT appointment_date,appointment_time,location FROM health_check_appointments WHERE id=?',[input.appointmentId]);ensure(a,'ไม่พบนัด',404);result={message:reminderText(a),sent:false};}
     else if(route==='audit'&&method==='GET'){allow('audit.read');result=await rows('SELECT a.id,a.action,a.entity_type,a.entity_id,a.changes,a.created_at,u.display_name actor FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_user_id ORDER BY a.id DESC LIMIT 200');}
