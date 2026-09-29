@@ -41,13 +41,11 @@ const STOOL = /stool|อุจจาระ|occult|FOBT|FIT\b/i;
 const FASTING = /FBS|FPG|glucose|น้ำตาล|chol|triglyceride|\bTG\b|HDL|LDL|lipid|ไขมัน/i;
 export function labGroups(tests: string[] = []) {
   const groups: string[] = [];
-  const other = [URINE, STOOL, EKG, SPUTUM, XRAY];
-  if (tests.some(t => !other.some(re => re.test(t)))) groups.push('การตรวจเลือด');
+  // Only three plain groups: blood, urine, and everything else (EKG, sputum, stool, X-ray).
+  const other = [STOOL, EKG, SPUTUM, XRAY];
+  if (tests.some(t => !URINE.test(t) && !other.some(re => re.test(t)))) groups.push('การตรวจเลือด');
   if (tests.some(t => URINE.test(t))) groups.push('การตรวจปัสสาวะ');
-  if (tests.some(t => STOOL.test(t))) groups.push('การตรวจอุจจาระ');
-  if (tests.some(t => SPUTUM.test(t))) groups.push('การตรวจเสมหะ');
-  if (tests.some(t => EKG.test(t))) groups.push('การตรวจคลื่นไฟฟ้าหัวใจ');
-  if (tests.some(t => XRAY.test(t))) groups.push('การถ่ายภาพรังสีทรวงอก');
+  if (tests.some(t => other.some(re => re.test(t)))) groups.push('การตรวจอื่นๆ');
   return groups;
 }
 export const thaiList = (items: string[]) => items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} และ${items[items.length - 1]}`;

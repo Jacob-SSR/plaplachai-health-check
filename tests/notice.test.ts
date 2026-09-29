@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { noticeFlex, noticeMessage, noticeText, type Notice } from '../src/domain/notice';
+import { labGroups, noticeFlex, noticeMessage, noticeText, type Notice } from '../src/domain/notice';
 import { MophAlertProvider, mophRequest } from '../src/providers/moph-alert';
 
 const notice: Notice = { kind: 'NEW', name: 'บุคลากรสมมติ', date: '2027-01-29', time: '08:31:00', service: 'แพทย์แผนไทย', location: 'ห้องบัตร' };
@@ -67,9 +67,10 @@ test('LAB notice lists the tests formally and adds preparation only when the tes
   assert.ok(!noticeText(notice).includes('🧪'));
 });
 
-test('EKG, sputum and chest X-ray are named as their own examinations, not blood tests', () => {
+test('only blood, urine and other examinations are named; EKG, sputum and X-ray are other, not blood', () => {
   const text = noticeText({ ...notice, service: 'LAB', tests: ['EKG', 'Sputum for AFB', 'CXR'] });
-  assert.ok(text.includes('การตรวจคลื่นไฟฟ้าหัวใจ') && text.includes('การตรวจเสมหะ') && text.includes('การถ่ายภาพรังสีทรวงอก'));
-  assert.ok(!text.includes('การตรวจเลือด'));
+  assert.ok(text.includes('• การตรวจอื่นๆ'));
+  assert.ok(!text.includes('การตรวจเลือด') && !text.includes('คลื่นไฟฟ้าหัวใจ'));
+  assert.deepEqual(labGroups(['CBC', 'UA', 'EKG']), ['การตรวจเลือด', 'การตรวจปัสสาวะ', 'การตรวจอื่นๆ']);
   assert.ok(text.includes('เก็บเสมหะ'));
 });
