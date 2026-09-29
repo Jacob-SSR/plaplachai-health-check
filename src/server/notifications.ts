@@ -6,7 +6,7 @@ import { type Actor } from './auth';
 import { decrypt } from './crypto';
 import { audit } from './audit';
 import { MophAlertProvider,type NotificationProvider } from '../providers/moph-alert';
-import { futureHosxpAppointment,hosxpAppointmentStillCurrent } from './hosxp-sync';
+import { futureHosxpAppointment,hosxpAppointmentStillCurrent,refreshHosxpAppointment } from './hosxp-sync';
 import { noticeMessage,noticeText,type Notice,type NoticeKind } from '../domain/notice';
 import { hosxpRoom } from '../domain/hosxp';
 
@@ -36,11 +36,12 @@ export async function scheduleReminders(now=new Date()) {
   }
   return count;
 }
-export async function dispatchOne(provider:NotificationProvider=new MophAlertProvider(),jobId?:string) {
+// manual=true: an admin pressed send, so the automatic on/off switch and DRY_RUN mode do not apply.
+export async function dispatchOne(provider:NotificationProvider=new MophAlertProvider(),jobId?:string,manual=false) {
   // A lost worker lease is uncertain, never an automatic retry.
   await execute("UPDATE notification_jobs SET status='UNKNOWN',safe_error='WORKER_LEASE_EXPIRED' WHERE status='SENDING' AND lease_until<UTC_TIMESTAMP(6)");
   const claimed=await transaction(async db=>{
-    const [settings]=await rows<RecordRow>('SELECT * FROM notification_settings WHERE id=1');if(!settings?.enabled)return null;
+    const [settings]=await rows<RecordRow>('SELECT * FROM notification_settings WHERE id=1');if(!manual&&!settings?.enabled)return null;
     const [job]=await rows<RecordRow>(`SELECT j.*,r.days_before FROM notification_jobs j LEFT JOIN notification_rules r ON r.id=j.rule_id WHERE j.status='PENDING' AND j.available_at<=UTC_TIMESTAMP(6) ${jobId?'AND j.id=?':''} ORDER BY j.available_at LIMIT 1 FOR UPDATE OF j SKIP LOCKED`,jobId?[jobId]:[],db);if(!job)return null;
     const [a]=job.hosxp_oapp_id?await rows<RecordRow>(`SELECT a.*,a.active source_active,e.cid_ciphertext,e.cid_verified_at,e.notification_enabled,e.active,e.hosxp_doctor_name,e.prefix,e.first_name,e.last_name
      FROM hosxp_appointments a JOIN employees e ON e.id=a.employee_id WHERE a.oapp_id=?`,[job.hosxp_oapp_id],db):await rows<RecordRow>(`SELECT a.*,e.cid_ciphertext,e.cid_verified_at,e.notification_enabled,e.active,m.eligibility_status,p.status plan_status,y.status year_status
@@ -51,7 +52,7 @@ export async function dispatchOne(provider:NotificationProvider=new MophAlertPro
     if(ineligible) {
       await execute("UPDATE notification_jobs SET status='CANCELLED',safe_error='APPOINTMENT_NO_LONGER_ELIGIBLE' WHERE id=?",[job.id],db);return {skipped:true};
     }
-    if(settings.mode==='DRY_RUN') {
+    if(!manual&&settings.mode==='DRY_RUN') {
       await execute("UPDATE notification_jobs SET status='DRY_RUN',safe_error='No network request was made' WHERE id=?",[job.id],db);return {skipped:true};
     }
     if(!a.notification_enabled||!a.cid_ciphertext||!a.cid_verified_at) {
@@ -106,11 +107,11 @@ export async function scheduleHosxpReminders(now=new Date()) {
 // Manual "send now" from the web. Uses the same checks as automatic sends and reports the result.
 export async function sendManualNotification(oappId:string,actor:Actor,provider:NotificationProvider=new MophAlertProvider()) {
   const jobId=randomUUID();
+  // Read this appointment from HOSxP now, so the button works without waiting for the worker.
+  ensure(await refreshHosxpAppointment(oappId),'ไม่พบนัดนี้ใน HOSxP หรือเลยวันนัดแล้ว',404);
   await transaction(async db=>{
-    const [settings]=await rows<RecordRow>('SELECT enabled,mode FROM notification_settings WHERE id=1',[],db);
-    ensure(settings?.enabled,'เปิดการแจ้งเตือนในหน้าแจ้งเตือนก่อน');
     const [a]=await rows<RecordRow>('SELECT oapp_id,schedule_version,active FROM hosxp_appointments WHERE oapp_id=? FOR UPDATE',[oappId],db);
-    ensure(a,'ยังไม่พบนัดนี้ในระบบแจ้งเตือน ให้ worker อ่านนัดจาก HOSxP ก่อน (npm run worker)',409);
+    ensure(a,'ไม่พบนัดนี้ใน HOSxP',404);
     ensure(a.active,'นัดนี้ไม่อยู่ในสถานะที่ส่งได้แล้ว (เลยวันนัด ยกเลิก หรือเปลี่ยนแปลง)',409);
     const recent=await rows("SELECT id FROM notification_jobs WHERE hosxp_oapp_id=? AND kind='MANUAL' AND created_at>DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 MINUTE)",[oappId],db);
     ensure(!recent.length,'เพิ่งส่งนัดนี้ไป กรุณารอ 1 นาที',429);
@@ -118,7 +119,7 @@ export async function sendManualNotification(oappId:string,actor:Actor,provider:
       VALUES(?,?,?,'MANUAL',?,?,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))`,[jobId,oappId,a.schedule_version,jobId,actor.id],db);
     await audit(db,actor.id,'MANUAL_NOTIFICATION','notification_jobs',jobId,{oappId});
   });
-  await dispatchOne(provider,jobId);
+  await dispatchOne(provider,jobId,true);
   const [job]=await rows<RecordRow>('SELECT id,status,safe_error FROM notification_jobs WHERE id=?',[jobId]);
   return {id:jobId,status:String(job.status),safe_error:job.safe_error??null};
 }

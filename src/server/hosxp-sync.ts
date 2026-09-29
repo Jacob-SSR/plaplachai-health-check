@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { getOapp, readPersonnelOapp } from './hosxp';
+import { getOapp, readPersonnelOapp, withEmployees } from './hosxp';
 import { rows, execute, transaction } from './db';
 import { canonicalJson, sha256 } from './crypto';
 import { addDays, bangkokNow } from '../domain/validation';
@@ -73,4 +73,26 @@ export async function hosxpAppointmentStillCurrent(a: RecordRow) {
   const [source] = await readPersonnelOapp({ from: date, to: date }, { personnel: employee.code, oappId: String(a.oapp_id) });
   return !!source && activeHosxpStatus(source.source_status_id)
     && hosxpFingerprint({ ...source, employee_id: Number(a.employee_id) }) === a.fingerprint;
+}
+
+// One appointment, read live from HOSxP (used by the manual send button). Stores it like the worker
+// would, but never queues the automatic notice: the person pressing the button is sending one now.
+export async function refreshHosxpAppointment(oappId: string, now = new Date()) {
+  const from = bangkokNow(now).day;
+  const [a] = await withEmployees(await readPersonnelOapp({ from, to: addDays(from, 366) }, { oappId }));
+  if (!a) return null;
+  const fingerprint = hosxpFingerprint(a);
+  const active = activeHosxpStatus(a.source_status_id) && futureHosxpAppointment(a.appointment_date, a.appointment_time, now);
+  await transaction(async db => {
+    const [old] = await rows<RecordRow>('SELECT fingerprint,schedule_version,active FROM hosxp_appointments WHERE oapp_id=? FOR UPDATE', [a.oapp_id], db);
+    if (old && old.fingerprint === fingerprint && !!old.active === active) return;
+    const version = Number(old?.schedule_version ?? 0) + 1;
+    await execute(`INSERT INTO hosxp_appointments(oapp_id,employee_id,appointment_date,appointment_time,location,source_status_id,fingerprint,schedule_version,active,depcode,doctor_code,doctor_name)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE employee_id=VALUES(employee_id),appointment_date=VALUES(appointment_date),appointment_time=VALUES(appointment_time),
+      location=VALUES(location),source_status_id=VALUES(source_status_id),fingerprint=VALUES(fingerprint),schedule_version=VALUES(schedule_version),active=VALUES(active),
+      depcode=VALUES(depcode),doctor_code=VALUES(doctor_code),doctor_name=VALUES(doctor_name)`,
+      [a.oapp_id, a.employee_id, a.appointment_date, a.appointment_time, a.location, a.source_status_id, fingerprint, version, active, a.depcode, a.doctor_code, a.doctor_name], db);
+    if (old) await execute("UPDATE notification_jobs SET status='CANCELLED',safe_error='HOSXP_APPOINTMENT_CHANGED' WHERE hosxp_oapp_id=? AND status IN ('PENDING','BLOCKED')", [a.oapp_id], db);
+  });
+  return a;
 }
