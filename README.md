@@ -8,7 +8,7 @@ Next.js + Node.js + MySQL สำหรับอ่านวันนัดจา
 
 ## ติดตั้งแบบ Node บนเครื่อง + ฐานข้อมูล Docker
 
-ใช้ Node.js 24 LTS, npm, Docker Engine + Compose และ Git. ก่อนเริ่ม ตรวจว่าพอร์ต 3307, 9090, 3000 ว่าง (PowerShell: `Get-NetTCPConnection -LocalPort 3307,9090,3000 -ErrorAction SilentlyContinue`). หากมีงานอื่นใช้อยู่ให้เปลี่ยนพอร์ตใน compose/.env ให้ตรงกัน ห้ามหยุดหรือลบ MySQL เดิมบน 3306
+ใช้ Node.js 24 LTS, npm, Docker Engine + Compose และ Git. ก่อนเริ่ม ตรวจว่าพอร์ต 3307, 9090, 5600 ว่าง (PowerShell: `Get-NetTCPConnection -LocalPort 3307,9090,3000 -ErrorAction SilentlyContinue`). หากมีงานอื่นใช้อยู่ให้เปลี่ยนพอร์ตใน compose/.env ให้ตรงกัน ห้ามหยุดหรือลบ MySQL เดิมบน 3306
 
 ```powershell
 Copy-Item .env.example .env
@@ -27,7 +27,7 @@ npm run build
 npm run start
 ```
 
-เปิด http://localhost:3000, phpMyAdmin ที่ http://localhost:9090. MySQL ใหม่ bind เฉพาะ 127.0.0.1:3307, ใช้ named volume `ppc-health-check_health_mysql_data` ที่แยกจากของเดิม. ฐานชื่อ ppc_health_check และบัญชี health_app. Migration ปฏิเสธชื่อฐานที่ไม่ขึ้นต้น ppc_health_check เพื่อป้องกันชี้ผิดโดยไม่ตั้งใจ
+เปิด http://localhost:5600, phpMyAdmin ที่ http://localhost:9090. MySQL ใหม่ bind เฉพาะ 127.0.0.1:3307, ใช้ named volume `ppc-health-check_health_mysql_data` ที่แยกจากของเดิม. ฐานชื่อ ppc_health_check และบัญชี health_app. Migration ปฏิเสธชื่อฐานที่ไม่ขึ้นต้น ppc_health_check เพื่อป้องกันชี้ผิดโดยไม่ตั้งใจ
 
 เปิด terminal อีกหน้าสำหรับ worker:
 

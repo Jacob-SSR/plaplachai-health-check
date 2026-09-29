@@ -31,7 +31,7 @@ services:
     build: .
     env_file: .env
     environment: { DB_HOST: mysql, DB_PORT: 3306, NODE_ENV: production }
-    ports: ["127.0.0.1:3000:3000"]
+    ports: ["127.0.0.1:5600:5600"]
     depends_on:
       mysql: { condition: service_healthy }
     networks: [health]
