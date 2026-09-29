@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { oappRange, readPersonnelOapp, type OappReader } from '../src/server/hosxp';
+import { oappRange, readPersonnelOapp, tickedLabs, type OappReader } from '../src/server/hosxp';
 import { hosxpFingerprint, activeHosxpStatus, futureHosxpAppointment } from '../src/server/hosxp-sync';
 import { reminderText } from '../src/server/notifications';
 import { fiscalYearForDate } from '../src/domain/validation';
@@ -28,7 +28,8 @@ test('personnel are matched by name or non-empty CID, bound values only, and ide
     assert.match(sql, /s.active='Y'/);
     assert.match(sql, /REPLACE\(s.name,' ',''\)=REPLACE\(CONCAT\(TRIM\(p.fname\),TRIM\(p.lname\)\),' ',''\)/);
     assert.match(sql, /TRIM\(s.cid\)<>'' AND s.cid=p.cid/);
-    assert.deepEqual(values, [range.from, range.to,'033','006','019','023']);
+    // LAB included: every staff appointment is read (any clinic may order LAB), then filtered.
+    assert.deepEqual(values, [range.from, range.to]);
     // One person with two doctor codes matches twice: reported once.
     return [appointment, { ...appointment, personnel_code: 'S002' }];
   };
@@ -102,7 +103,7 @@ test('only four rooms are returned and provider filters are bound SQL values',as
   const data=await readPersonnelOapp(range,{room:'006',doctor:'D001',personnel:'S001'},async(sql,values)=>{
     assert.match(sql,/LEFT JOIN doctor d ON d.code=o.doctor/);
     assert.match(sql,/LEFT JOIN kskdepartment k ON k.depcode=o.depcode/);
-    assert.deepEqual(values,[range.from,range.to,'006','D001','S001']);
+    assert.deepEqual(values,[range.from,range.to,'D001','S001']);
     assert.ok(!sql.includes('D001'));
     return [appointment,{...appointment,oapp_id:'other-room',depcode:'000'}];
   });
@@ -123,9 +124,18 @@ test('an appointment from any clinic with a LAB order is a LAB appointment',asyn
   let sql='';
   const data=await readPersonnelOapp(range,{},async s=>{sql=s;return [
     {...appointment,oapp_id:'ncd',depcode:'099',has_lab:1},{...appointment,oapp_id:'other',depcode:'099',has_lab:0},{...appointment,oapp_id:'dental',depcode:'019',has_lab:1}];});
-  assert.match(sql,/OR EXISTS\(SELECT 1 FROM lab_app_head lx WHERE lx\.oapp_id=o\.oapp_id\)/);
+  assert.match(sql,/EXISTS\(SELECT 1 FROM lab_app_head lh WHERE lh\.oapp_id=o\.oapp_id\) has_lab/);
+  assert.ok(!sql.includes('o.depcode IN'));
   assert.deepEqual(data.map(a=>[a.oapp_id,a.room_name,a.has_lab]),[['ncd','LAB',true],['dental','ทันตกรรม',true]]);
   let roomSql='';
   await readPersonnelOapp(range,{room:'019'},async s=>{roomSql=s;return [];});
-  assert.ok(!roomSql.includes('OR EXISTS'));
+  assert.match(roomSql,/o\.depcode IN \(\?\)/);
+});
+
+test('LAB ticked on the HOSxP appointment screen (any clinic) makes a LAB appointment with those items',async()=>{
+  const data=await readPersonnelOapp(range,{},async()=>[
+    {...appointment,oapp_id:'obst',depcode:'099',has_lab:0,lab_list:'FBS,U/A'} as never,
+    {...appointment,oapp_id:'plain',depcode:'099',has_lab:0,note:'Creatinine clearance discussion'} as never],['FBS','U/A','Cr','CBC']);
+  assert.deepEqual(data.map(a=>[a.oapp_id,a.room_name,a.lab_ticked]),[['obst','LAB',['FBS','U/A']]]);
+  assert.deepEqual(tickedLabs({personnel_name:'CBC ชื่อคน',x:'cbc; FBS'},['CBC','FBS']),['CBC','FBS']);
 });

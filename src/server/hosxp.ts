@@ -43,18 +43,42 @@ export function oappRange(params: URLSearchParams, today = bangkokNow().day) {
   return { from, to };
 }
 
+// Names of the LAB tick boxes on the HOSxP appointment screen (table oapp_lab, e.g. FBS, U/A, CBC).
+let labNamesCache: { at: number; names: string[] } | undefined;
+export async function oappLabNames() {
+  if (labNamesCache && Date.now() - labNamesCache.at < 10 * 60 * 1000) return labNamesCache.names;
+  try {
+    const [found] = await hosxpPool().execute<RowDataPacket[]>({ sql: 'SELECT name FROM oapp_lab', timeout: 15000 });
+    labNamesCache = { at: Date.now(), names: found.map(r => String(r.name ?? '').trim()).filter(n => n.length > 0 && n.length <= 60) };
+  } catch (error) {
+    console.error({ code: 'HOSXP_OAPP_LAB', message: error instanceof Error ? error.message.slice(0, 200) : '' });
+    labNamesCache = { at: Date.now(), names: [] };
+  }
+  return labNamesCache.names;
+}
+const OUR_COLUMNS = new Set(['personnel_code', 'personnel_name', 'doctor_name', 'department_name', 'clinic_name', 'has_lab']);
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// Ticked LAB items are saved somewhere in the oapp row; find the tick-box names in its text columns.
+export function tickedLabs(row: Record<string, unknown>, names: string[]) {
+  const text = Object.entries(row).filter(([key, value]) => !OUR_COLUMNS.has(key) && typeof value === 'string').map(([, value]) => value as string).join('\n');
+  if (!text) return [];
+  return names.filter(name => new RegExp(`(^|[^A-Za-z0-9])${escapeRe(name)}($|[^A-Za-z0-9])`, 'i').test(text));
+}
+
 export type OappFilters = { room?: string; doctor?: string; personnel?: string; oappId?: string };
 // Read only. An appointment belongs to personnel when the patient is an active doctor row,
 // matched by name (patient fname+lname = doctor.name, spaces ignored) or by a non-empty CID.
 // One person with several doctor codes is reported once per appointment.
-export async function readPersonnelOapp(range: { from: string; to: string }, filters: OappFilters = {}, read: OappReader = sourceReader) {
+export async function readPersonnelOapp(range: { from: string; to: string }, filters: OappFilters = {}, read: OappReader = sourceReader, labNames?: string[]) {
   oappRange(new URLSearchParams(range));
   if (filters.room) ensure(hosxpRoom(filters.room), 'เลือกได้เฉพาะกายภาพ LAB ทันตกรรม และแผนไทย');
   for (const value of [filters.doctor, filters.personnel, filters.oappId]) if (value) z.string().trim().min(1).max(40).parse(value);
   const roomCodes = filters.room ? [filters.room] : HOSXP_ROOMS.map(room => room.code);
   // LAB is ordered from any clinic (e.g. NCD): an appointment with a LAB order counts as a LAB appointment.
   const withLab = roomCodes.includes(LAB_ROOM);
-  const rows = await read(`SELECT o.oapp_id,s.code personnel_code,s.name personnel_name,o.nextdate,o.nexttime,
+  const tickNames = withLab ? labNames ?? (read === sourceReader ? await oappLabNames() : []) : [];
+  // With LAB included every staff appointment is read, because any clinic may order LAB.
+  const rows = await read(`SELECT o.*,o.oapp_id,s.code personnel_code,s.name personnel_name,o.nextdate,o.nexttime,
     o.clinic,o.depcode,o.contact_point,o.oapp_status_id,o.update_datetime,o.visit_vn,o.doctor,d.name doctor_name,k.department department_name,c.name clinic_name,
     EXISTS(SELECT 1 FROM lab_app_head lh WHERE lh.oapp_id=o.oapp_id) has_lab
     FROM oapp o JOIN patient p ON p.hn=o.hn
@@ -62,15 +86,15 @@ export async function readPersonnelOapp(range: { from: string; to: string }, fil
       OR (TRIM(s.cid)<>'' AND s.cid=p.cid))
     LEFT JOIN doctor d ON d.code=o.doctor LEFT JOIN kskdepartment k ON k.depcode=o.depcode
     LEFT JOIN clinic c ON c.clinic=o.clinic
-    WHERE o.nextdate BETWEEN ? AND ? AND (o.depcode IN (${roomCodes.map(() => '?').join(',')})
-      ${withLab ? 'OR EXISTS(SELECT 1 FROM lab_app_head lx WHERE lx.oapp_id=o.oapp_id)' : ''})
+    WHERE o.nextdate BETWEEN ? AND ? ${withLab ? '' : `AND o.depcode IN (${roomCodes.map(() => '?').join(',')})`}
     ${filters.doctor ? 'AND o.doctor=?' : ''} ${filters.personnel ? 'AND s.code=?' : ''} ${filters.oappId ? 'AND o.oapp_id=?' : ''}
     ORDER BY o.nextdate,o.nexttime,o.oapp_id,s.code LIMIT 3001`,
-    [range.from, range.to, ...roomCodes, ...[filters.doctor, filters.personnel, filters.oappId].filter((v): v is string => !!v)]);
+    [range.from, range.to, ...(withLab ? [] : roomCodes), ...[filters.doctor, filters.personnel, filters.oappId].filter((v): v is string => !!v)]);
   ensure(rows.length <= 3000, 'ข้อมูลนัดมีจำนวนมาก กรุณาเลือกช่วงวันที่สั้นลง', 422);
   const seen = new Set<string>(), result = [];
   for (const row of rows) {
-    const own = hosxpRoom(row.depcode), oappId = String(row.oapp_id), hasLab = Number(row.has_lab) === 1;
+    const own = hosxpRoom(row.depcode), oappId = String(row.oapp_id), ticked = withLab ? tickedLabs(row as unknown as Record<string, unknown>, tickNames) : [];
+    const hasLab = Number(row.has_lab) === 1 || ticked.length > 0;
     const room = own && roomCodes.includes(own.code) ? own : hasLab && withLab ? hosxpRoom(LAB_ROOM)! : undefined;
     if (!room || seen.has(oappId)) continue;
     seen.add(oappId);
@@ -86,7 +110,7 @@ export async function readPersonnelOapp(range: { from: string; to: string }, fil
       source_status_id: row.oapp_status_id, source_updated_at: row.update_datetime,
       // HOSxP links the visit to the appointment when the person came (visit_vn).
       visited: String(row.visit_vn ?? '').trim() !== '',
-      has_lab: hasLab,
+      has_lab: hasLab, lab_ticked: ticked,
     });
   }
   ensure(result.length <= 1000, 'ข้อมูลนัดมีจำนวนมาก กรุณาเลือกช่วงวันที่สั้นลง', 422);
@@ -128,10 +152,10 @@ export async function hosxpLabTests(oappIds: string[]) {
   }
   return map;
 }
-export async function withLabTests<T extends { oapp_id: string; has_lab?: boolean }>(data: T[]) {
+export async function withLabTests<T extends { oapp_id: string; has_lab?: boolean; lab_ticked?: string[] }>(data: T[]) {
   const lab = data.filter(a => a.has_lab);
   const tests = lab.length ? await hosxpLabTests(lab.map(a => a.oapp_id)) : new Map<string, string[]>();
-  return data.map(a => ({ ...a, lab_tests: tests.get(a.oapp_id) ?? [] }));
+  return data.map(a => ({ ...a, lab_tests: [...new Set([...(a.lab_ticked ?? []), ...(tests.get(a.oapp_id) ?? [])])] }));
 }
 
 export async function getOapp(params: URLSearchParams, actor?: Actor) {
