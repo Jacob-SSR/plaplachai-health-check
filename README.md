@@ -8,7 +8,7 @@ Next.js + Node.js + MySQL สำหรับอ่านวันนัดจา
 
 ## ติดตั้งแบบ Node บนเครื่อง + ฐานข้อมูล Docker
 
-ใช้ Node.js 24 LTS, npm, Docker Engine + Compose และ Git. ก่อนเริ่ม ตรวจว่าพอร์ต 3307, 9090, 5600 ว่าง (PowerShell: `Get-NetTCPConnection -LocalPort 3307,9090,3000 -ErrorAction SilentlyContinue`). หากมีงานอื่นใช้อยู่ให้เปลี่ยนพอร์ตใน compose/.env ให้ตรงกัน ห้ามหยุดหรือลบ MySQL เดิมบน 3306
+ใช้ Node.js 24 LTS, npm, Docker Engine + Compose และ Git. ก่อนเริ่ม ตรวจว่าพอร์ต 3307, 9090, 5600 ว่าง (PowerShell: `Get-NetTCPConnection -LocalPort 3307,9090,5600 -ErrorAction SilentlyContinue` หรือ cmd: `netstat -ano | findstr :3307`). หากมีงานอื่นใช้อยู่ (เช่น MySQL ของ XAMPP) ให้เปลี่ยนใน .env: `MYSQL_HOST_PORT` (และ `DB_PORT` ให้เท่ากัน), `PMA_HOST_PORT`, `APP_HOST_PORT` ไม่ต้องแก้ docker-compose.yml ห้ามหยุดหรือลบ MySQL เดิมบน 3306
 
 ```powershell
 Copy-Item .env.example .env
