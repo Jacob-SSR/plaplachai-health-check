@@ -17,6 +17,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 20
+      # First start initialises the data directory; on slow Windows disks this can take minutes.
+      start_period: 15m
   phpmyadmin:
     image: phpmyadmin:5.2
     environment:
