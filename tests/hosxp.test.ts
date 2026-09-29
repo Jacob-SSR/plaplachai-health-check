@@ -3,11 +3,13 @@ import assert from 'node:assert/strict';
 import { oappRange, readOappForRecipients, type OappReader } from '../src/server/hosxp';
 import { hosxpFingerprint, activeHosxpStatus, futureHosxpAppointment } from '../src/server/hosxp-sync';
 import { reminderText } from '../src/server/notifications';
+import { fiscalYearForDate } from '../src/domain/validation';
+import { calendarPeriod } from '../src/server/public-calendar';
 
 const range = { from: '2026-10-01', to: '2026-10-31' };
 const recipient = { id: 1, display_name: 'บุคลากรสมมติ', cid: '1234567890121' };
 const appointment = { oapp_id: '9007199254740993', recipient_cid: recipient.cid,
-  nextdate: '2026-10-02', nexttime: null, clinic: '015', depcode: '015',
+  nextdate: '2026-10-02', nexttime: null, clinic: '015', depcode: '006', doctor:'D001', doctor_name:'ผู้ให้บริการสมมติ', department_name:'ห้องชันสูตร',
   contact_point: 'ห้องบัตร', oapp_status_id: null, update_datetime: null };
 
 test('oapp range defaults to Bangkok today and rejects invalid or unbounded ranges', () => {
@@ -24,8 +26,9 @@ test('oapp reads only existing recipients using bound CID values and removes ide
     calls++;
     assert.match(sql, /FROM oapp o JOIN patient p ON p.hn=o.hn/);
     assert.match(sql, /p.cid IN \(\?\)/);
+    assert.match(sql, /personnel.cid=p.cid AND personnel.active='Y'/);
     assert.ok(!sql.includes(recipient.cid));
-    assert.deepEqual(values, [recipient.cid, range.from, range.to]);
+    assert.deepEqual(values, [recipient.cid, range.from, range.to,'033','006','019','023']);
     return [appointment, { ...appointment, oapp_id: '2', recipient_cid: 'unregistered' }];
   };
   const data = await readOappForRecipients([recipient], range, reader);
@@ -78,4 +81,35 @@ test('unknown source statuses do not send and missing time is not fabricated', (
   assert.equal(futureHosxpAppointment('2026-10-01',null,now),false);
   assert.match(reminderText({appointment_date:'2026-10-02',appointment_time:null,location:''}),/ยืนยันเวลา/);
   assert.ok(!reminderText({appointment_date:'2026-10-02',appointment_time:null}).includes('null'));
+});
+
+test('Thai fiscal year follows appointment date at the October boundary without a selected year',()=>{
+  for(const [day,year] of [['2026-09-30',2569],['2026-10-01',2570],['2027-01-01',2570],['2027-09-30',2570],['2027-10-01',2571]] as const){
+    assert.equal(fiscalYearForDate(day),year);
+  }
+  assert.throws(()=>fiscalYearForDate('2026-02-29'));
+  const period=calendarPeriod(new URLSearchParams({month:'2026-10',year:'wrong-old-selection'}));
+  assert.equal(period.year.fiscal_year,2570);
+  assert.equal(period.year.start_date,'2026-10-01');
+  assert.equal(period.year.end_date,'2027-09-30');
+  assert.throws(()=>calendarPeriod(new URLSearchParams({month:'2026-13'})));
+});
+
+test('only four rooms are returned and provider filters are bound SQL values',async()=>{
+  const data=await readOappForRecipients([recipient],range,async(sql,values)=>{
+    assert.match(sql,/LEFT JOIN doctor d ON d.code=o.doctor/);
+    assert.match(sql,/LEFT JOIN kskdepartment k ON k.depcode=o.depcode/);
+    assert.deepEqual(values,[recipient.cid,range.from,range.to,'006','D001']);
+    assert.ok(!sql.includes('D001'));
+    return [appointment,{...appointment,oapp_id:'unselected-room',depcode:'033'},
+      {...appointment,oapp_id:'other-room',depcode:'000'},{...appointment,oapp_id:'other-doctor',doctor:'D002'}];
+  },{room:'006',doctor:'D001'});
+  assert.equal(data.length,1);assert.equal(data[0].room_name,'LAB');
+  assert.equal(data[0].doctor_name,'ผู้ให้บริการสมมติ');assert.equal(data[0].fiscal_year,2570);
+  let called=false;
+  await assert.rejects(readOappForRecipients([recipient],range,async()=>{called=true;return [];},{room:'000'}));
+  assert.equal(called,false);
+  const all=await readOappForRecipients([recipient],range,async()=>[
+    ...['033','006','019','023','000'].map(depcode=>({...appointment,oapp_id:depcode,depcode}))]);
+  assert.equal(all.length,4);
 });

@@ -1,5 +1,17 @@
-import { execute,rows,type DB } from './db';
-import { ensure } from '../domain/validation';
+import { execute,rows,transaction,type DB } from './db';
+import { ensure,fiscalRange,fiscalYearForDate } from '../domain/validation';
+
+export async function ensureFiscalYears(dates: string[], connection?: DB) {
+  const run=async(db:DB)=>{
+    for(const fy of [...new Set(dates.map(fiscalYearForDate))].sort()) {
+      const range=fiscalRange(fy);
+      await execute('INSERT IGNORE INTO fiscal_years(fiscal_year,start_date,end_date) VALUES(?,?,?)',[fy,range.start,range.end],db);
+      const [year]=await rows<{id:number;status:string}>('SELECT id,status FROM fiscal_years WHERE fiscal_year=?',[fy],db);
+      if(year.status==='OPEN')await prepareAnnualServices(year.id,db);
+    }
+  };
+  return connection?run(connection):transaction(run);
+}
 
 // Service identities are permanent. Only the annual scheduling container is new each year.
 export async function prepareAnnualServices(yearId:number,db:DB){

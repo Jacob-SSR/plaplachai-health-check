@@ -4,7 +4,7 @@ Base path `/api/v1`. ทุก endpoint ต้องมี session cookie ยก
 
 | Method / path | สิทธิ์ | Input / ผลลัพธ์หลัก |
 |---|---|---|
-| GET public-calendar | สาธารณะ อ่านอย่างเดียว | year (id), month (YYYY-MM), department, group; ปี/ตัวกรอง/วันเวลา/สถานที่/จำนวน ไม่มีข้อมูลรายบุคคล |
+| GET public-calendar | สาธารณะ อ่านอย่างเดียว | month (YYYY-MM), department, group (รหัสห้อง); ปีคำนวณจากเดือนอัตโนมัติ/วันเวลา/สถานที่/จำนวน ไม่มีข้อมูลรายบุคคล |
 | POST personnel-seed | employee.write (ADMIN) | JSON version:1,source,snapshotDate,people; จำกัด 2 MB/2,000 คน transaction ทั้งชุด คืนจำนวน created/unchanged |
 | POST members/bulk | roster.write (ADMIN) | employeeIds,planId,snapshotDate,rounds,serviceIds; transaction ทั้งชุด ไม่สร้างทะเบียนซ้ำ |
 | POST auth/login | สาธารณะ + Origin | username,password; ตั้ง HttpOnly cookie |
@@ -13,12 +13,13 @@ Base path `/api/v1`. ทุก endpoint ต้องมี session cookie ยก
 | POST masters/:kind / PATCH masters/:kind/:id | master.write | code,name,active,parentId/groupId,version เมื่อแก้ |
 | GET/POST employees / PATCH employees/:id | employee.read/write | อ่านตาม department scope; employeeCode,prefix,firstName,lastName,departmentId,positionId,levelId,employmentTypeId,validFrom; version,active เมื่อแก้ |
 | PATCH employees/:id/recipient | notification.manage | cid (optional เมื่อใช้เลขเดิม),enabled,verified; ไม่มี endpoint อ่าน CID เต็ม |
-| POST years / PATCH years/:id | year.write | {year:2570} สร้างชุดบริการประจำทั้ง 4 อัตโนมัติ / {status,version,reason} |
+| POST years / PATCH years/:id | year.write | 410 AUTOMATIC_FISCAL_YEAR ปีคำนวณจากวันที่โดยอัตโนมัติ |
 | POST plans | plan.write | yearId,code,name,location,start,end,serviceIds |
 | PATCH plans/:id | plan.write | name,location,start,end,status,version,reason; ห้ามทำให้นัดเดิมอยู่นอกช่วง |
 | GET members?year=id / POST members | employee.read / roster.write | ทะเบียนรายปี / employeeId,planId,snapshotDate,rounds,serviceIds |
 | GET appointments / GET calendar | appointment.read + scope | filter query; appointments แบ่งหน้าละ 50, calendar สูงสุด 10,000 |
-| GET hosxp/oapp | appointment.read + employee.read + scope | from/to (ค.ศ.) อ่าน oapp เฉพาะ CID ในทะเบียนเดิม ไม่มี CID ในผลตอบกลับ |
+| GET hosxp/oapp | appointment.read + employee.read + scope | from/to (ค.ศ.), room, doctor อ่าน oapp เฉพาะ CID ในทะเบียนเดิมและสี่ห้อง คืนปีงบประมาณจากวันนัด ไม่มี CID ในผลตอบกลับ |
+| GET hosxp/options | appointment.read + employee.read | สี่ห้องและ doctor code/name ที่เปิดใช้งาน |
 | POST appointments | appointment.write | 410 HOSXP_APPOINTMENTS_ONLY ให้ลงนัดใน HOSxP |
 | PATCH appointments/:id | appointment.write | 410 HOSXP_APPOINTMENTS_ONLY |
 | PATCH appointments/:id/status | appointment.write | 410 HOSXP_APPOINTMENTS_ONLY |

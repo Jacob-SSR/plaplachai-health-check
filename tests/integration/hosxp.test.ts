@@ -5,14 +5,14 @@ import { testGuard } from '../fixture';
 import { rows, execute, pool } from '../../src/server/db';
 import { syncHosxpAppointments } from '../../src/server/hosxp-sync';
 import { dispatchOne } from '../../src/server/notifications';
-import { addDays, bangkokNow } from '../../src/domain/validation';
+import { addDays, bangkokNow, fiscalYearForDate } from '../../src/domain/validation';
 
 testGuard();after(()=>pool().end());
 test('HOSxP baseline, deduplication, reschedule, deletion and source failure',async()=>{
   const tag=randomUUID(),now=new Date(),day=addDays(bangkokNow(now).day,10);
   const employee=await execute("INSERT INTO employees(employee_code,first_name,last_name) VALUES(?,'ทดสอบ','HOSxP')",[tag]);
   const a={source:'HOSXP' as const,oapp_id:tag,employee_id:employee.insertId,display_name:'ทดสอบ',appointment_date:day,
-    appointment_time:'09:00:00',clinic:'015',depcode:'015',location:'ห้องทดสอบ',source_status_id:null,source_updated_at:null};
+    appointment_time:'09:00:00',clinic:'015',depcode:'006',room_name:'LAB' as const,department_name:'ห้องชันสูตร',doctor_code:'D001',doctor_name:'ผู้ให้บริการสมมติ',fiscal_year:fiscalYearForDate(day),location:'ห้องทดสอบ',source_status_id:null,source_updated_at:null};
   const snapshot=[a];const source=async()=>({data:snapshot});
   await execute('UPDATE hosxp_sync_state SET initialized=0 WHERE id=1');
   await execute("UPDATE notification_settings SET enabled=1,mode='DRY_RUN' WHERE id=1");
