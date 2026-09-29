@@ -1,5 +1,5 @@
 import { Select,s,type Item } from './ui';
-export const serviceTone=(name:string,index:number)=>({'ทันตกรรม':'service-dental','แผนไทย':'service-thai','กายภาพ':'service-physical','ตรวจเลือด':'service-blood'}[name]??`tone-${index%4}`);
+export const serviceTone=(name:string,index:number)=>({'LAB':'service-blood','แพทย์แผนไทย':'service-thai','กายภาพบำบัด':'service-physical','ทันตกรรม':'service-dental','แผนไทย':'service-thai','กายภาพ':'service-physical','ตรวจเลือด':'service-blood'}[name]??`tone-${index%4}`);
 
 export function AnnualPlan({plans,value,onChange,name,disabled=false}:{plans:Item[];value:string;onChange:(value:string)=>void;name?:string;disabled?:boolean}){
   if(plans.length===1)return <label>ปีที่จัดตารางตรวจ<input readOnly value={s(plans[0].name)}/>{name&&<input type="hidden" name={name} value={value}/>}</label>;

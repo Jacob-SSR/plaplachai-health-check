@@ -4,7 +4,7 @@ import { authenticate,login,logout,requirePermission,scopeSql } from '@/src/serv
 import { rows,execute,transaction } from '@/src/server/db';
 import { jsonBody,boundedBody,errorResponse,download } from '@/src/server/http';
 import { ensure,id,text } from '@/src/domain/validation';
-import { masters,saveMaster,employees,createEmployee,updateEmployee,setRecipient,createYear,closeYear,createPlan,updatePlan,enroll,enrollMany,members,saveUser } from '@/src/server/registry';
+import { masters,saveMaster,employees,createEmployee,updateEmployee,setRecipient,createPlan,updatePlan,enroll,enrollMany,members,saveUser } from '@/src/server/registry';
 import { listAppointments } from '@/src/server/appointments';
 import { reports } from '@/src/server/reports';
 import { exportAppointments } from '@/src/server/excel';
@@ -13,7 +13,7 @@ import { audit } from '@/src/server/audit';
 import { publicCalendar } from '@/src/server/public-calendar';
 import { sendTestNotification } from '@/src/server/notification-test';
 import { importPersonnelSeed } from '@/src/server/personnel-seed';
-import { getOapp } from '@/src/server/hosxp';
+import { getOapp,hosxpOptions } from '@/src/server/hosxp';
 
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -24,6 +24,7 @@ async function handle(req:NextRequest,{params}:{params:Promise<{path:string[]}>}
     if(route==='auth/login'&&method==='POST') {const data=z.object({username:text(100),password:z.string().min(1).max(200)}).parse(await jsonBody(req));return await login(req,data.username,data.password);}
     const actor=await authenticate(req),allow=(permission:string)=>requirePermission(actor,permission);
     let result:unknown;
+    if(path[0]==='years'&&['POST','PATCH'].includes(method)){allow('year.write');ensure(false,'ระบบคำนวณปีงบประมาณจากวันที่ให้อัตโนมัติ',410,'AUTOMATIC_FISCAL_YEAR');}
     if ((route==='appointments'&&method==='POST') ||
       (path[0]==='appointments'&&method==='PATCH') ||
       (path[0]==='imports'&&(path[1]==='template'||method==='POST'))) {
@@ -43,14 +44,13 @@ async function handle(req:NextRequest,{params}:{params:Promise<{path:string[]}>}
     }
     else if(path[0]==='employees'&&path.length===2&&method==='PATCH'){allow('employee.write');result=await updateEmployee(id.parse(path[1]),await jsonBody(req),actor);}
     else if(path[0]==='employees'&&path[2]==='recipient'&&method==='PATCH'){allow('notification.manage');result=await setRecipient(id.parse(path[1]),await jsonBody(req),actor);}
-    else if(route==='years'&&method==='POST'){allow('year.write');result=await createYear(await jsonBody(req),actor);}
-    else if(path[0]==='years'&&path.length===2&&method==='PATCH'){allow('year.write');result=await closeYear(id.parse(path[1]),await jsonBody(req),actor);}
     else if(route==='plans'&&method==='POST'){allow('plan.write');result=await createPlan(await jsonBody(req),actor);}
     else if(path[0]==='plans'&&path.length===2&&method==='PATCH'){allow('plan.write');result=await updatePlan(id.parse(path[1]),await jsonBody(req),actor);}
     else if(route==='members'&&method==='GET'){allow('employee.read');result=await members(id.parse(url.get('year')),actor);}
     else if(route==='members'&&method==='POST'){allow('roster.write');result=await enroll(await jsonBody(req),actor);}
     else if(route==='members/bulk'&&method==='POST'){allow('roster.write');result=await enrollMany(await jsonBody(req),actor);}
     else if(route==='appointments'&&method==='GET'){allow('appointment.read');result=await listAppointments(url,actor);}
+    else if(route==='hosxp/options'&&method==='GET'){allow('appointment.read');allow('employee.read');result=await hosxpOptions();}
     else if(route==='hosxp/oapp'&&method==='GET'){allow('appointment.read');allow('employee.read');result=await getOapp(url,actor);}
     else if(route==='calendar'&&method==='GET'){allow('appointment.read');result=await listAppointments(url,actor,true);}
     else if(route==='reports'&&method==='GET'){allow('report.read');id.parse(url.get('year'));result=await reports(url,actor);}

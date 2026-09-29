@@ -29,6 +29,10 @@ export function fiscalRange(year: number) {
   ensure(Number.isInteger(year) && year >= 2500 && year <= 2800, 'ปีงบประมาณไม่ถูกต้อง');
   return { start:`${year-544}-10-01`, end:`${year-543}-09-30` };
 }
+export function fiscalYearForDate(value: string) {
+  ensure(isDate(value), 'วันที่ต้องเป็น ค.ศ. YYYY-MM-DD และมีอยู่จริง');
+  return Number(value.slice(0, 4)) + 543 + (Number(value.slice(5, 7)) >= 10 ? 1 : 0);
+}
 export function inRange(day:string,start:string,end:string) { return isDate(day) && day>=start && day<=end; }
 export function bangkokNow(now = new Date()) {
   const day = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);

@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { rows } from './db';
 import { decrypt, cidHash } from './crypto';
 import { scopeSql, type Actor } from './auth';
-import { addDays, bangkokNow, date, ensure, validCid } from '../domain/validation';
+import { addDays, bangkokNow, date, ensure, validCid, fiscalYearForDate } from '../domain/validation';
+import { HOSXP_ROOMS,hosxpRoom } from '../domain/hosxp';
 
 const globalHosxp = globalThis as unknown as { hosxpPool?: mysql.Pool };
 function hosxpPool() {
@@ -27,6 +28,7 @@ type SourceRow = {
   nextdate: string; nexttime: string | null; clinic: string | null;
   depcode: string | null; contact_point: string | null;
   oapp_status_id: string | number | null; update_datetime: string | null;
+  doctor: string | null; doctor_name: string | null; department_name: string | null;
 };
 export type OappRecipient = { id: number; display_name: string; cid: string };
 export type OappReader = (sql: string, values: string[]) => Promise<SourceRow[]>;
@@ -46,8 +48,12 @@ export function oappRange(params: URLSearchParams, today = bangkokNow().day) {
 // patient(hn,cid) supplies the CID because oapp itself contains only hn.
 export async function readOappForRecipients(
   recipients: OappRecipient[], range: { from: string; to: string }, read: OappReader = sourceReader,
+  filters: {room?:string;doctor?:string} = {},
 ) {
   oappRange(new URLSearchParams(range));
+  if(filters.room)ensure(hosxpRoom(filters.room),'เลือกได้เฉพาะกายภาพ LAB ทันตกรรม และแผนไทย');
+  if(filters.doctor)z.string().trim().min(1).max(40).parse(filters.doctor);
+  const roomCodes=filters.room?[filters.room]:HOSXP_ROOMS.map(room=>room.code);
   const byCid = new Map<string, OappRecipient>();
   for (const recipient of recipients) {
     ensure(validCid(recipient.cid), 'ข้อมูล CID ในทะเบียนบุคลากรไม่ถูกต้อง', 503);
@@ -59,20 +65,26 @@ export async function readOappForRecipients(
   for (let offset = 0; offset < cids.length; offset += 100) {
     const batch = cids.slice(offset, offset + 100);
     const appointments = await read(`SELECT o.oapp_id,p.cid recipient_cid,o.nextdate,o.nexttime,
-      o.clinic,o.depcode,o.contact_point,o.oapp_status_id,o.update_datetime
+      o.clinic,o.depcode,o.contact_point,o.oapp_status_id,o.update_datetime,o.doctor,d.name doctor_name,k.department department_name
       FROM oapp o JOIN patient p ON p.hn=o.hn
+      LEFT JOIN doctor d ON d.code=o.doctor LEFT JOIN kskdepartment k ON k.depcode=o.depcode
       WHERE p.cid IN (${batch.map(() => '?').join(',')}) AND o.nextdate BETWEEN ? AND ?
-      ORDER BY o.nextdate,o.nexttime,o.oapp_id LIMIT 1001`, [...batch, range.from, range.to]);
+      AND o.depcode IN (${roomCodes.map(()=>'?').join(',')}) ${filters.doctor?'AND o.doctor=?':''}
+      ORDER BY o.nextdate,o.nexttime,o.oapp_id LIMIT 1001`, [...batch, range.from, range.to,...roomCodes,...(filters.doctor?[filters.doctor]:[])]);
     ensure(appointments.length <= 1000, 'ข้อมูลนัดมีจำนวนมาก กรุณาเลือกช่วงวันที่สั้นลง', 422);
     for (const row of appointments) {
       const employee = byCid.get(String(row.recipient_cid).trim());
-      if (!employee) continue;
+      const room=hosxpRoom(row.depcode);
+      if (!employee||!room||!roomCodes.includes(room.code)||(filters.doctor&&row.doctor!==filters.doctor)) continue;
       // Explicit projection: no CID, HN, notes, diagnosis or other patient data in the response.
       result.push({
         source: 'HOSXP' as const, oapp_id: String(row.oapp_id),
         employee_id: employee.id, display_name: employee.display_name,
         appointment_date: row.nextdate, appointment_time: row.nexttime,
         clinic: row.clinic, depcode: row.depcode, location: row.contact_point ?? '',
+        room_name:room.name,department_name:row.department_name??room.name,
+        doctor_code:row.doctor,doctor_name:row.doctor_name,
+        fiscal_year:fiscalYearForDate(row.nextdate),
         source_status_id: row.oapp_status_id, source_updated_at: row.update_datetime,
       });
     }
@@ -98,10 +110,16 @@ export async function getOapp(params: URLSearchParams, actor?: Actor) {
   });
   if (!recipients.length) {
     // Still validate the source connection/schema; an unconfigured source is not a successful sync.
-    await sourceReader('SELECT o.oapp_id,p.cid recipient_cid FROM oapp o JOIN patient p ON p.hn=o.hn WHERE 1=0', []);
+    await sourceReader('SELECT o.oapp_id,p.cid recipient_cid,d.name doctor_name,k.department department_name FROM oapp o JOIN patient p ON p.hn=o.hn LEFT JOIN doctor d ON d.code=o.doctor LEFT JOIN kskdepartment k ON k.depcode=o.depcode WHERE 1=0', []);
   }
-  const data = await readOappForRecipients(recipients, range);
+  const data = await readOappForRecipients(recipients, range,sourceReader,{room:params.get('room')||undefined,doctor:params.get('doctor')||undefined});
   return { source: 'HOSXP', ...range, data, total: data.length };
+}
+
+export async function hosxpOptions() {
+  // Only the provider code/name are exposed; doctor CID, dates of birth and tokens stay in HOSxP.
+  const [doctors]=await hosxpPool().execute<RowDataPacket[]>({sql:"SELECT code,name FROM doctor WHERE active='Y' ORDER BY name",timeout:15000});
+  return {rooms:HOSXP_ROOMS,doctors:doctors.map(row=>({code:String(row.code),name:String(row.name)}))};
 }
 
 export async function closeHosxpPool() {

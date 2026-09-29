@@ -2,6 +2,8 @@ import 'dotenv/config';
 import { readdir, readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { pool, rows, execute } from '../src/server/db';
+import { ensureFiscalYears } from '../src/server/annual-services';
+import { bangkokNow } from '../src/domain/validation';
 
 export async function migrate() {
   if(!/^ppc_health_check(?:_[a-z0-9]+)*$/.test(process.env.DB_NAME??''))throw new Error('Refuse migration: use a separate ppc_health_check database (optional suffix allowed).');
@@ -20,6 +22,7 @@ export async function migrate() {
       await execute('INSERT INTO schema_migrations(name,checksum) VALUES(?,?)',[name,checksum],db);
       console.log(`Applied ${name}`);
     }
+    await ensureFiscalYears([bangkokNow().day]);
   } finally {await db.query("SELECT RELEASE_LOCK('ppc_health_check_migration')");db.release();}
 }
 if(process.argv[1]?.endsWith('migrate.ts')) migrate().then(()=>pool().end()).catch(e=>{console.error(e.message);process.exitCode=1;void pool().end();});
