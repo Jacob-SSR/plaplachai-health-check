@@ -25,7 +25,8 @@ export function noticeRows(n: Notice): [string, string, string][] {
     ['📅', 'วันที่', thaiLongDate(n.date)],
     ['⏰', 'เวลา', n.time ? `${n.time.slice(0, 5)} น.` : 'โปรดติดต่อเจ้าหน้าที่เพื่อยืนยันเวลา'],
     ['🩺', 'บริการ', n.service || '-'],
-    ...(n.tests?.length ? [['🧪', 'รายการตรวจ', `${thaiList(labGroups(n.tests))}\n(${testsLine(n.tests)})`] as [string, string, string]] : []),
+    // Plain Thai categories only; staff see the item codes in the web, not in the notice.
+    ...(n.tests?.length ? [['🧪', 'การตรวจ', labGroups(n.tests).map(g => `• ${g}`).join('\n')] as [string, string, string]] : []),
     ['📍', 'ติดต่อที่', n.location || HOSPITAL_NAME],
   ];
 }
@@ -33,13 +34,20 @@ export const NOTICE_PREPARE = ['บัตรประจำตัวประช
 
 // LAB items grouped for a formal summary; preparation advice only for tests that need it.
 const URINE = /urine|\bUA\b|U\/A|ปัสสาวะ|microalbumin|UACR/i;
+const EKG = /\bEKG\b|\bECG\b|คลื่นไฟฟ้าหัวใจ/i;
+const SPUTUM = /sputum|\bAFB\b|เสมหะ/i;
+const XRAY = /x-?ray|\bCXR\b|chest film|เอกซเรย์|เอ็กซเรย์|ภาพรังสี/i;
 const STOOL = /stool|อุจจาระ|occult|FOBT|FIT\b/i;
 const FASTING = /FBS|FPG|glucose|น้ำตาล|chol|triglyceride|\bTG\b|HDL|LDL|lipid|ไขมัน/i;
 export function labGroups(tests: string[] = []) {
   const groups: string[] = [];
-  if (tests.some(t => !URINE.test(t) && !STOOL.test(t))) groups.push('การตรวจเลือด');
+  const other = [URINE, STOOL, EKG, SPUTUM, XRAY];
+  if (tests.some(t => !other.some(re => re.test(t)))) groups.push('การตรวจเลือด');
   if (tests.some(t => URINE.test(t))) groups.push('การตรวจปัสสาวะ');
   if (tests.some(t => STOOL.test(t))) groups.push('การตรวจอุจจาระ');
+  if (tests.some(t => SPUTUM.test(t))) groups.push('การตรวจเสมหะ');
+  if (tests.some(t => EKG.test(t))) groups.push('การตรวจคลื่นไฟฟ้าหัวใจ');
+  if (tests.some(t => XRAY.test(t))) groups.push('การถ่ายภาพรังสีทรวงอก');
   return groups;
 }
 export const thaiList = (items: string[]) => items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} และ${items[items.length - 1]}`;
@@ -47,13 +55,9 @@ export function noticePreparation(n: Notice) {
   const tests = n.tests ?? [], steps: string[] = [];
   if (tests.some(t => FASTING.test(t))) steps.push('งดอาหารและเครื่องดื่มทุกชนิด ยกเว้นน้ำเปล่า อย่างน้อย 8 ชั่วโมงก่อนการเจาะเลือด');
   if (tests.some(t => URINE.test(t))) steps.push('เก็บตัวอย่างปัสสาวะช่วงกลางของการถ่ายปัสสาวะ ตามคำแนะนำของเจ้าหน้าที่ห้องปฏิบัติการ');
+  if (tests.some(t => SPUTUM.test(t))) steps.push('เก็บเสมหะในช่วงเช้าหลังตื่นนอน โดยบ้วนปากด้วยน้ำเปล่าก่อน ตามคำแนะนำของเจ้าหน้าที่');
   if (tests.some(t => STOOL.test(t))) steps.push('รับภาชนะเก็บตัวอย่างอุจจาระและคำแนะนำจากเจ้าหน้าที่ห้องปฏิบัติการ');
   return steps;
-}
-const TESTS_SHOWN = 12;
-export function testsLine(tests: string[] = []) {
-  const shown = tests.slice(0, TESTS_SHOWN).join(', ');
-  return tests.length > TESTS_SHOWN ? `${shown} และอีก ${tests.length - TESTS_SHOWN} รายการ` : shown;
 }
 export const NOTICE_FOOTER = ['กรุณามาก่อนเวลานัด 15 นาที', 'หากไม่สะดวกหรือต้องการเลื่อนนัด โปรดติดต่อเจ้าหน้าที่'];
 
@@ -105,7 +109,7 @@ export const NOTICE_COLORS: Record<NoticeKind, string> = { NEW: '#0D5B44', MANUA
 export function noticeFlex(n: Notice, logoUrl?: string) {
   const color = NOTICE_COLORS[n.kind];
   const row = ([icon, label, value]: [string, string, string]) => ({ type: 'box', layout: 'horizontal', spacing: 'md', contents: [
-    { type: 'text', text: `${icon} ${label}`, size: 'sm', color: '#6B7280', flex: 3 },
+    { type: 'text', text: `${icon} ${label}`, size: 'sm', color: '#6B7280', flex: 3, wrap: true },
     { type: 'text', text: value, size: 'sm', color: '#111827', weight: 'bold', wrap: true, flex: 6 }] });
   return {
     type: 'flex', altText: `${noticeTitle(n)} · ${thaiLongDate(n.date)}`,

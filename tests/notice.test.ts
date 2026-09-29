@@ -57,12 +57,19 @@ test('every notice tells the person to bring the national ID card', () => {
 test('LAB notice lists the tests formally and adds preparation only when the tests need it', () => {
   const lab: Notice = { ...notice, service: 'LAB', tests: ['CBC', 'FBS', 'UA'] };
   const text = noticeText(lab);
-  assert.ok(text.includes('การตรวจเลือด และการตรวจปัสสาวะ'));
-  assert.ok(text.includes('CBC, FBS, UA'));
+  assert.ok(text.includes('• การตรวจเลือด') && text.includes('• การตรวจปัสสาวะ'));
+  assert.ok(!text.includes('CBC') && !text.includes('FBS'), 'no item codes in the notice');
   assert.ok(text.includes('งดอาหารและเครื่องดื่มทุกชนิด ยกเว้นน้ำเปล่า อย่างน้อย 8 ชั่วโมง'));
   assert.ok(text.includes('ปัสสาวะช่วงกลาง'));
   assert.ok(JSON.stringify(noticeFlex(lab)).includes('การเตรียมตัวก่อนรับการตรวจ'));
   const cbcOnly = noticeText({ ...notice, service: 'LAB', tests: ['CBC'] });
   assert.ok(!cbcOnly.includes('งดอาหาร') && !cbcOnly.includes('ปัสสาวะ'));
-  assert.ok(!noticeText(notice).includes('รายการตรวจ'));
+  assert.ok(!noticeText(notice).includes('🧪'));
+});
+
+test('EKG, sputum and chest X-ray are named as their own examinations, not blood tests', () => {
+  const text = noticeText({ ...notice, service: 'LAB', tests: ['EKG', 'Sputum for AFB', 'CXR'] });
+  assert.ok(text.includes('การตรวจคลื่นไฟฟ้าหัวใจ') && text.includes('การตรวจเสมหะ') && text.includes('การถ่ายภาพรังสีทรวงอก'));
+  assert.ok(!text.includes('การตรวจเลือด'));
+  assert.ok(text.includes('เก็บเสมหะ'));
 });
