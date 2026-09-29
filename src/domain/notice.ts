@@ -15,7 +15,7 @@ export function thaiLongDate(day: string) {
     .format(new Date(`${day}T00:00:00+07:00`));
 }
 export function noticeLead(n: Notice) {
-  if (n.kind === 'REMINDER') return `อีก ${n.daysBefore ?? 2} วันจะถึงวันนัดของท่าน`;
+  if (n.kind === 'REMINDER') return n.daysBefore === 0 ? 'วันนี้เป็นวันนัดของท่าน' : n.daysBefore === 1 ? 'พรุ่งนี้เป็นวันนัดของท่าน' : `อีก ${n.daysBefore ?? 2} วันจะถึงวันนัดของท่าน`;
   if (n.kind === 'CHANGED') return 'นัดหมายของท่านมีการเปลี่ยนแปลง รายละเอียดใหม่ดังนี้';
   return 'ท่านมีนัดตรวจสุขภาพ รายละเอียดดังนี้';
 }

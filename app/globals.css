@@ -46,3 +46,13 @@ section[aria-label="ปฏิทินตรวจสุขภาพ"] .service-
 .notice-card .notice-card-head small{color:rgba(255,255,255,.85);font-size:12px;margin:0}
 .notice-card-prepare{margin-top:14px;background:#fff7e6;border-radius:10px;padding:10px 12px;color:#78350f;font-size:14px}
 .notice-card-prepare strong{color:#92400e}.notice-card .notice-card-prepare ul{margin:4px 0 0;padding-left:18px;font-size:14px;color:#78350f;background:none}
+.reminder-rounds{border:1px solid var(--line);border-radius:12px;padding:12px 16px;display:grid;gap:8px}
+.reminder-rounds legend{font-weight:700;padding:0 6px}
+.reminder-round{display:grid;grid-template-columns:auto 80px auto 1fr;align-items:center;gap:14px;padding:8px 10px;border-radius:10px;background:#f6f8f6;opacity:.75}
+.reminder-round.on{background:#eaf4ee;opacity:1}
+.reminder-round label{display:flex;align-items:center;gap:8px;margin:0}.reminder-round input[type=number]{width:72px}
+.reminder-round small{color:#667}
+.switch{width:46px;height:26px;border-radius:13px;border:0;padding:3px;background:#c8cfca;min-height:0;cursor:pointer;display:flex;transition:background .15s}
+.switch span{width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+.switch[aria-checked=true]{background:#18584a}.switch[aria-checked=true] span{transform:translateX(20px)}
+@media (max-width:600px){.reminder-round{grid-template-columns:auto 1fr;}.reminder-round small{grid-column:1/-1}}
