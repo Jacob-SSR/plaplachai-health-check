@@ -29,7 +29,9 @@ test('HOSxP baseline, deduplication, reschedule, deletion and source failure',as
   await syncHosxpAppointments(now,source);assert.equal((await jobs()).length,2);
   await assert.rejects(syncHosxpAppointments(now,async()=>{throw Error('SOURCE_UNAVAILABLE');}));
   assert.equal((await jobs()).filter(j=>j.status==='PENDING').length,1);
-  snapshot.length=0;await syncHosxpAppointments(now,source);
-  assert.equal((await jobs()).filter(j=>j.status==='PENDING').length,0);
+  // Removed from HOSxP before the date (checkSource: row no longer exists) -> one cancellation notice.
+  snapshot.length=0;await syncHosxpAppointments(now,source,async()=>new Map());
+  const pending=await rows<{kind:string}>("SELECT kind FROM notification_jobs WHERE hosxp_oapp_id=? AND status='PENDING'",[tag]);
+  assert.deepEqual(pending.map(j=>j.kind),['CANCELLED']);
   const [stored]=await rows<{active:number}>('SELECT active FROM hosxp_appointments WHERE oapp_id=?',[tag]);assert.equal(stored.active,0);
 });

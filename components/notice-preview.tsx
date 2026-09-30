@@ -1,10 +1,10 @@
 'use client';
 import { useState } from 'react';
-import { HOSPITAL_NAME, NOTICE_FOOTER, NOTICE_PREPARE, noticePreparation, noticeLead, noticeRows, noticeTitle, type Notice, type NoticeKind } from '@/src/domain/notice';
+import { HOSPITAL_NAME, noticeFooter, showsPreparation, NOTICE_PREPARE, noticePreparation, noticeLead, noticeRows, noticeTitle, type Notice, type NoticeKind } from '@/src/domain/notice';
 
 const SAMPLE: Omit<Notice, 'kind'> = { name: 'ตัวอย่าง บุคลากร', date: '2027-01-29', time: '08:30:00', service: 'แพทย์แผนไทย', location: 'ห้องบัตร', daysBefore: 2 };
 const LAB_SAMPLE: Omit<Notice, 'kind'> = { ...SAMPLE, service: 'LAB', location: 'ห้องปฏิบัติการ', tests: ['CBC', 'FBS', 'Cholesterol', 'Triglyceride', 'Creatinine', 'UA'] };
-const KINDS: [NoticeKind, string][] = [['NEW', 'ลงนัดครั้งแรก'], ['REMINDER', 'ก่อนวันนัด 2 วัน'], ['CHANGED', 'เลื่อนนัด'], ['MANUAL', 'กดส่งเอง']];
+const KINDS: [NoticeKind, string][] = [['NEW', 'ลงนัดครั้งแรก'], ['REMINDER', 'ก่อนวันนัด 2 วัน'], ['CHANGED', 'เลื่อนนัด'], ['MANUAL', 'กดส่งเอง'], ['CANCELLED', 'ยกเลิกนัด']];
 
 // Same layout as noticeFlex(): header with hospital logo, name box, details, notes.
 export function NoticeCard({ notice }: { notice: Notice }) {
@@ -15,10 +15,10 @@ export function NoticeCard({ notice }: { notice: Notice }) {
       <div className="notice-card-name">คุณ{notice.name}</div>
       <p className="notice-card-lead">{noticeLead(notice)}</p>
       <dl>{noticeRows(notice).map(([icon, label, value]) => <div key={label}><dt>{icon} {label}</dt><dd>{value}</dd></div>)}</dl>
-      <div className="notice-card-prepare"><strong>🪪 สิ่งที่ต้องนำมา</strong><ul>{NOTICE_PREPARE.map(item => <li key={item}>{item}</li>)}</ul>
-        {noticePreparation(notice).length > 0 && <><strong>📝 การเตรียมตัวก่อนรับการตรวจ</strong><ul>{noticePreparation(notice).map(item => <li key={item}>{item}</li>)}</ul></>}</div>
+      {showsPreparation(notice) && <div className="notice-card-prepare"><strong>🪪 สิ่งที่ต้องนำมา</strong><ul>{NOTICE_PREPARE.map(item => <li key={item}>{item}</li>)}</ul>
+        {noticePreparation(notice).length > 0 && <><strong>📝 การเตรียมตัวก่อนรับการตรวจ</strong><ul>{noticePreparation(notice).map(item => <li key={item}>{item}</li>)}</ul></>}</div>}
     </div>
-    <ul className="notice-card-foot">{NOTICE_FOOTER.map(line => <li key={line}>{line}</li>)}</ul>
+    <ul className="notice-card-foot">{noticeFooter(notice).map(line => <li key={line}>{line}</li>)}</ul>
   </div>;
 }
 
@@ -33,6 +33,7 @@ export function NoticePreview() {
         <li><strong>ลงนัดครั้งแรก</strong> ส่งทันทีเมื่อ worker พบนัดใหม่ใน HOSxP</li>
         <li><strong>เลื่อนนัด</strong> ส่งทันทีเมื่อวัน เวลา หรือจุดติดต่อเปลี่ยน</li>
         <li><strong>ก่อนวันนัด 2 วัน</strong> ส่งตามเวลาที่ตั้ง (ค่าเริ่มต้น 08:00 น.)</li>
+        <li><strong>ยกเลิกนัด</strong> ส่งทันทีเมื่อนัดที่ยังไม่ถึงวันถูกลบหรือเปลี่ยนเป็นสถานะยกเลิกใน HOSxP</li>
         <li><strong>กดส่งเอง</strong> กดในเว็บนี้ ไม่ต้องทำใน HOSxP: ปุ่ม “ส่งแจ้งเตือน” ท้ายแถวในเมนูนัดหมายจาก HOSxP หรือในรายละเอียดนัดบนปฏิทิน ส่งทันที</li>
       </ul></div></div>
   </section>;

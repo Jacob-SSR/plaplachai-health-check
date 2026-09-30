@@ -13,7 +13,7 @@ import { appointmentExtras } from './hosxp';
 
 export function noticeFromRow(a:Record<string,unknown>,kind:string='NEW',daysBefore?:number,extras:{tests?:string[];preparation?:string[]}={}):Notice {
   const name=String(a.hosxp_doctor_name||`${a.prefix??''}${a.first_name??''} ${a.last_name??''}`).trim();
-  const noticeKind:NoticeKind=kind==='REMINDER'?'REMINDER':kind==='MANUAL'?'MANUAL':Number(a.schedule_version)>1?'CHANGED':'NEW';
+  const noticeKind:NoticeKind=kind==='CANCELLED'?'CANCELLED':kind==='REMINDER'?'REMINDER':kind==='MANUAL'?'MANUAL':Number(a.schedule_version)>1?'CHANGED':'NEW';
   return {kind:noticeKind,name,date:String(a.appointment_date).slice(0,10),time:a.appointment_time?String(a.appointment_time):null,
     service:hosxpRoom(a.depcode)?.name??'',location:String(a.location??''),daysBefore,...extras};
 }
@@ -48,7 +48,9 @@ export async function dispatchOne(provider:NotificationProvider=new MophAlertPro
      FROM hosxp_appointments a JOIN employees e ON e.id=a.employee_id WHERE a.oapp_id=?`,[job.hosxp_oapp_id],db):await rows<RecordRow>(`SELECT a.*,e.cid_ciphertext,e.cid_verified_at,e.notification_enabled,e.active,m.eligibility_status,p.status plan_status,y.status year_status
      FROM health_check_appointments a JOIN fiscal_year_members m ON m.id=a.member_id JOIN employees e ON e.id=m.employee_id JOIN health_check_plans p ON p.id=a.plan_id JOIN fiscal_years y ON y.id=a.fiscal_year_id WHERE a.id=?`,[job.appointment_id],db);
     const {day,clock}=bangkokNow();
-    const ineligible=job.hosxp_oapp_id?(!a||!a.source_active||!a.active||Number(a.schedule_version)!==Number(job.schedule_version)||!futureHosxpAppointment(String(a.appointment_date),a.appointment_time as string|null)):
+    const cancelNotice=job.kind==='CANCELLED';
+    // A cancellation notice needs the appointment to still be cancelled (not re-activated) and not yet past.
+    const ineligible=job.hosxp_oapp_id?(!a||(cancelNotice?!!a.source_active:!a.source_active)||!a.active||Number(a.schedule_version)!==Number(job.schedule_version)||!futureHosxpAppointment(String(a.appointment_date),a.appointment_time as string|null)):
       (!a||a.status!=='SCHEDULED'||a.plan_status!=='OPEN'||a.year_status!=='OPEN'||!a.active||a.eligibility_status!=='ELIGIBLE'||Number(a.schedule_version)!==Number(job.schedule_version)||`${a.appointment_date} ${a.appointment_time}`<=`${day} ${clock}:00`);
     if(ineligible) {
       await execute("UPDATE notification_jobs SET status='CANCELLED',safe_error='APPOINTMENT_NO_LONGER_ELIGIBLE' WHERE id=?",[job.id],db);return {skipped:true};
@@ -60,13 +62,13 @@ export async function dispatchOne(provider:NotificationProvider=new MophAlertPro
       await execute("UPDATE notification_jobs SET status='BLOCKED',safe_error='ผู้รับยังไม่เปิดแจ้งเตือนหรือยังไม่ตรวจรับ CID' WHERE id=?",[job.id],db);return {skipped:true};
     }
     let cid:string;try{cid=decrypt(String(a.cid_ciphertext));}catch{await execute("UPDATE notification_jobs SET status='BLOCKED',safe_error='กุญแจข้อมูลผู้รับไม่พร้อม' WHERE id=?",[job.id],db);return {skipped:true};}
-    if(job.hosxp_oapp_id&&!await hosxpAppointmentStillCurrent(a)) {
+    if(job.hosxp_oapp_id&&!cancelNotice&&!await hosxpAppointmentStillCurrent(a)) {
       await execute("UPDATE notification_jobs SET status='CANCELLED',safe_error='HOSXP_APPOINTMENT_CHANGED' WHERE id=?",[job.id],db);return {skipped:true};
     }
     await execute("UPDATE notification_jobs SET status='SENDING',attempt_count=attempt_count+1,lease_until=DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 2 MINUTE) WHERE id=?",[job.id],db);
     await execute("INSERT INTO notification_attempts(job_id,attempt_no,outcome) VALUES(?,?,'STARTED')",[job.id,Number(job.attempt_count)+1],db);
     return {skipped:false,jobId:String(job.id),attemptNo:Number(job.attempt_count)+1,cid,message:job.hosxp_oapp_id?noticeMessage(noticeFromRow(a,String(job.kind??'NEW'),job.days_before==null?undefined:Number(job.days_before),
-      await appointmentExtras(String(job.hosxp_oapp_id),String(a.appointment_date).slice(0,10)))):noticeText(noticeFromRow(a))};
+      cancelNotice?{}:await appointmentExtras(String(job.hosxp_oapp_id),String(a.appointment_date).slice(0,10)))):noticeText(noticeFromRow(a))};
   });
   if(!claimed)return false;if(claimed.skipped)return true;
   const delivery=await provider.send(claimed.cid!,claimed.message!);
