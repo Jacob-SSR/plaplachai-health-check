@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { rows } from './db';
 import { scopeSql, type Actor } from './auth';
 import { addDays, bangkokNow, date, ensure, fiscalYearForDate } from '../domain/validation';
-import { HOSXP_ROOMS,hosxpRoom,LAB_ROOM } from '../domain/hosxp';
+import { HOSXP_ROOMS,hosxpRoom,roomForAppointment,LAB_ROOM } from '../domain/hosxp';
 import { syncDoctorPersonnel, type DoctorPerson } from './hosxp-personnel';
 
 const globalHosxp = globalThis as unknown as { hosxpPool?: mysql.Pool };
@@ -61,7 +61,8 @@ export async function readPersonnelOapp(range: { from: string; to: string }, fil
   const roomCodes = filters.room ? [filters.room] : HOSXP_ROOMS.map(room => room.code);
   // LAB is ordered from any clinic (e.g. NCD): an appointment with a LAB order counts as a LAB appointment.
   const withLab = roomCodes.includes(LAB_ROOM);
-  // With LAB included every staff appointment is read, because any clinic may order LAB.
+  // Every staff appointment in the range is read and sorted into rooms here: the room can come from
+  // depcode, the clinic name (appointments without depcode) or a LAB order from any clinic.
   const rows = await read(`SELECT o.*,o.oapp_id,s.code personnel_code,s.name personnel_name,o.nextdate,o.nexttime,
     o.clinic,o.depcode,o.contact_point,o.oapp_status_id,o.update_datetime,o.visit_vn,o.doctor,d.name doctor_name,k.department department_name,c.name clinic_name,
     EXISTS(SELECT 1 FROM lab_app_head lh WHERE lh.oapp_id=o.oapp_id) has_lab
@@ -70,14 +71,14 @@ export async function readPersonnelOapp(range: { from: string; to: string }, fil
       OR (TRIM(s.cid)<>'' AND s.cid=p.cid))
     LEFT JOIN doctor d ON d.code=o.doctor LEFT JOIN kskdepartment k ON k.depcode=o.depcode
     LEFT JOIN clinic c ON c.clinic=o.clinic
-    WHERE o.nextdate BETWEEN ? AND ? ${withLab ? '' : `AND o.depcode IN (${roomCodes.map(() => '?').join(',')})`}
+    WHERE o.nextdate BETWEEN ? AND ?
     ${filters.doctor ? 'AND o.doctor=?' : ''} ${filters.personnel ? 'AND s.code=?' : ''} ${filters.oappId ? 'AND o.oapp_id=?' : ''}
     ORDER BY o.nextdate,o.nexttime,o.oapp_id,s.code LIMIT 3001`,
-    [range.from, range.to, ...(withLab ? [] : roomCodes), ...[filters.doctor, filters.personnel, filters.oappId].filter((v): v is string => !!v)]);
+    [range.from, range.to, ...[filters.doctor, filters.personnel, filters.oappId].filter((v): v is string => !!v)]);
   ensure(rows.length <= 3000, 'ข้อมูลนัดมีจำนวนมาก กรุณาเลือกช่วงวันที่สั้นลง', 422);
   const seen = new Set<string>(), result = [];
   for (const row of rows) {
-    const own = hosxpRoom(row.depcode), oappId = String(row.oapp_id), ticked = withLab ? tickedLabs(row as unknown as Record<string, unknown>) : [];
+    const own = roomForAppointment(row.depcode, row.clinic_name), oappId = String(row.oapp_id), ticked = withLab ? tickedLabs(row as unknown as Record<string, unknown>) : [];
     const hasLab = Number(row.has_lab) === 1 || ticked.length > 0;
     const room = own && roomCodes.includes(own.code) ? own : hasLab && withLab ? hosxpRoom(LAB_ROOM)! : undefined;
     if (!room || seen.has(oappId)) continue;

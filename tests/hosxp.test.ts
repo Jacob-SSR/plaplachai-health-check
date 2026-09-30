@@ -127,9 +127,9 @@ test('an appointment from any clinic with a LAB order is a LAB appointment',asyn
   assert.match(sql,/EXISTS\(SELECT 1 FROM lab_app_head lh WHERE lh\.oapp_id=o\.oapp_id\) has_lab/);
   assert.ok(!sql.includes('o.depcode IN'));
   assert.deepEqual(data.map(a=>[a.oapp_id,a.room_name,a.has_lab]),[['ncd','LAB',true],['dental','ทันตกรรม',true]]);
-  let roomSql='';
-  await readPersonnelOapp(range,{room:'019'},async s=>{roomSql=s;return [];});
-  assert.match(roomSql,/o\.depcode IN \(\?\)/);
+  const dentalOnly=await readPersonnelOapp(range,{room:'019'},async()=>[
+    {...appointment,oapp_id:'ncd',depcode:'099',has_lab:1},{...appointment,oapp_id:'dental',depcode:'019',has_lab:1}]);
+  assert.deepEqual(dentalOnly.map(a=>a.oapp_id),['dental']);
 });
 
 test('LAB and preparation ticked on the HOSxP appointment screen come from note2 and note1 (any clinic)',async()=>{
@@ -141,4 +141,20 @@ test('LAB and preparation ticked on the HOSxP appointment screen come from note2
   assert.deepEqual(data[0].prep_notes,['งดน้ำและอาหาร 6-8 ชั่วโมง (หลังเที่ยงคืน)','กรุณานำบัตรนัดมาด้วย']);
   assert.deepEqual(tickedLabs({note2:'CBC\r\nEKG\r\n',lab_list_text:'CBC'}),['CBC','EKG']);
   assert.deepEqual(preparationNotes({note1:null,perform_text:'จิบน้ำได้'}),['จิบน้ำได้']);
+});
+
+test('appointments without depcode are placed by clinic name (older physio and Thai medicine)',async()=>{
+  const data=await readPersonnelOapp(range,{},async sql=>{
+    assert.ok(!sql.includes('o.depcode IN'));
+    return [
+      {...appointment,oapp_id:'physio',depcode:'',clinic:'027',clinic_name:'กายภาพบำบัด'},
+      {...appointment,oapp_id:'imc',depcode:null,clinic:'041',clinic_name:'IMC กายภาพ'},
+      {...appointment,oapp_id:'thai',depcode:'',clinic:'026',clinic_name:'แพทย์แผนไทย'},
+      {...appointment,oapp_id:'general',depcode:'',clinic:'000',clinic_name:'ตรวจโรคทั่วไป'},
+      {...appointment,oapp_id:'physio-dep',depcode:'033',clinic:'000',clinic_name:'ตรวจโรคทั่วไป'},
+    ] as never;
+  });
+  assert.deepEqual(data.map(a=>[a.oapp_id,a.room_name]),[['physio','กายภาพบำบัด'],['imc','กายภาพบำบัด'],['thai','แพทย์แผนไทย'],['physio-dep','กายภาพบำบัด']]);
+  const physioOnly=await readPersonnelOapp(range,{room:'033'},async()=>[{...appointment,oapp_id:'physio',depcode:'',clinic_name:'กายภาพบำบัด'}] as never);
+  assert.equal(physioOnly.length,1);
 });
