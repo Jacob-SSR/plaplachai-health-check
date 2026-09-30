@@ -31,6 +31,7 @@ services:
     restart: unless-stopped
   app:
     build: .
+    image: ppc-health-check-app:latest
     env_file: .env
     environment: { DB_HOST: mysql, DB_PORT: 3306, NODE_ENV: production }
     # Web is reachable from other computers on the LAN; set APP_BIND=127.0.0.1 to keep it local.
@@ -41,7 +42,10 @@ services:
     restart: unless-stopped
     profiles: [app]
   worker:
-    build: .
+    # Same code as app: reuse its image instead of building a second copy (slow, and two parallel
+    # builds of one Dockerfile can fail with "no such job" on Docker Desktop).
+    image: ppc-health-check-app:latest
+    pull_policy: never
     command: ["npm", "run", "worker"]
     env_file: .env
     environment: { DB_HOST: mysql, DB_PORT: 3306, NODE_ENV: production }
