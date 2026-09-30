@@ -87,3 +87,12 @@ test('every notice asks for the patient record book if the person has one', () =
   assert.ok(noticeText(notice).includes('สมุดประจำตัวผู้ป่วย (ถ้ามี)'));
   assert.ok(JSON.stringify(noticeFlex(notice)).includes('สมุดประจำตัวผู้ป่วย (ถ้ามี)'));
 });
+
+test('cancellation notice says the appointment is cancelled, asks nothing to be brought and gives the contact note', () => {
+  const text = noticeText({ ...notice, kind: 'CANCELLED', service: 'LAB', tests: ['FBS'], preparation: ['งดน้ำและอาหาร 6-8 ชั่วโมง'] });
+  assert.ok(text.includes('แจ้งยกเลิกวันนัด') && text.includes('ถูกยกเลิกแล้ว') && text.includes('29 มกราคม 2570'));
+  assert.ok(!text.includes('สิ่งที่ต้องนำมา') && !text.includes('งดน้ำและอาหาร') && !text.includes('กรุณามาก่อนเวลานัด'));
+  assert.ok(text.includes('หากต้องการนัดใหม่'));
+  const flex = JSON.stringify(noticeFlex({ ...notice, kind: 'CANCELLED' }));
+  assert.ok(flex.includes('#B91C1C') && !flex.includes('สิ่งที่ต้องนำมา'));
+});

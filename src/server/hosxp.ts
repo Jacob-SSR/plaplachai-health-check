@@ -157,6 +157,21 @@ export async function withLabTests<T extends { oapp_id: string; has_lab?: boolea
   return data.map(a => ({ ...a, lab_tests: [...new Set([...(a.lab_ticked ?? []), ...(tests.get(a.oapp_id) ?? [])])] }));
 }
 
+// Whether appointments still exist in HOSxP and their status, to tell a real cancellation (row deleted or
+// status changed) from an appointment that only left the personnel match. A read error throws, so no
+// cancellation notice is ever sent on uncertain data.
+export async function oappSourceState(oappIds: string[]) {
+  const map = new Map<string, { status: unknown }>();
+  const ids = [...new Set(oappIds.map(String))].filter(id => /^\d{1,20}$/.test(id));
+  for (let i = 0; i < ids.length; i += 200) {
+    const batch = ids.slice(i, i + 200);
+    const [found] = await hosxpPool().execute<RowDataPacket[]>({ timeout: 15000, values: batch,
+      sql: `SELECT oapp_id,oapp_status_id FROM oapp WHERE oapp_id IN (${batch.map(() => '?').join(',')})` });
+    for (const row of found) map.set(String(row.oapp_id), { status: row.oapp_status_id });
+  }
+  return map;
+}
+
 export async function getOapp(params: URLSearchParams, actor?: Actor) {
   const range = oappRange(params);
   const source = await readPersonnelOapp(range, { room: params.get('room') || undefined,

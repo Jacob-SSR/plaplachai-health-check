@@ -1,11 +1,12 @@
 // Appointment notice sent to LINE หมอพร้อม. Plain text is always available; the Flex card is opt-in.
-export type NoticeKind = 'NEW' | 'CHANGED' | 'REMINDER' | 'MANUAL';
+export type NoticeKind = 'NEW' | 'CHANGED' | 'REMINDER' | 'MANUAL' | 'CANCELLED';
 export type Notice = { kind: NoticeKind; name: string; date: string; time: string | null; service: string; location: string; daysBefore?: number;
   /** LAB items from HOSxP (ticked note2 + LAB order form) */ tests?: string[];
   /** Preparation instructions ticked in HOSxP (note1), hospital wording */ preparation?: string[] };
 
 export const HOSPITAL_NAME = 'โรงพยาบาลพลับพลาชัย';
 const TITLES: Record<NoticeKind, string> = {
+  CANCELLED: 'แจ้งยกเลิกวันนัด',
   NEW: 'แจ้งนัดตรวจสุขภาพบุคลากร',
   CHANGED: 'แจ้งเปลี่ยนแปลงวันนัด',
   REMINDER: 'แจ้งเตือนก่อนถึงวันนัด',
@@ -17,6 +18,7 @@ export function thaiLongDate(day: string) {
     .format(new Date(`${day}T00:00:00+07:00`));
 }
 export function noticeLead(n: Notice) {
+  if (n.kind === 'CANCELLED') return 'นัดหมายของท่านต่อไปนี้ได้ถูกยกเลิกแล้ว';
   if (n.kind === 'REMINDER') return n.daysBefore === 0 ? 'วันนี้เป็นวันนัดของท่าน' : n.daysBefore === 1 ? 'พรุ่งนี้เป็นวันนัดของท่าน' : `อีก ${n.daysBefore ?? 2} วันจะถึงวันนัดของท่าน`;
   if (n.kind === 'CHANGED') return 'นัดหมายของท่านมีการเปลี่ยนแปลง รายละเอียดใหม่ดังนี้';
   return 'ท่านมีนัดตรวจสุขภาพ รายละเอียดดังนี้';
@@ -62,8 +64,13 @@ export function noticePreparation(n: Notice) {
   return steps;
 }
 export const NOTICE_FOOTER = ['กรุณามาก่อนเวลานัด 15 นาที', 'หากไม่สะดวกหรือต้องการเลื่อนนัด โปรดติดต่อเจ้าหน้าที่'];
+export const CANCEL_FOOTER = ['ไม่ต้องมารับบริการตามวันและเวลาดังกล่าว', 'หากต้องการนัดใหม่ หรือไม่ได้ขอยกเลิก โปรดติดต่อเจ้าหน้าที่'];
+export const noticeFooter = (n: Notice) => n.kind === 'CANCELLED' ? CANCEL_FOOTER : NOTICE_FOOTER;
+// A cancelled appointment needs nothing brought or prepared.
+export const showsPreparation = (n: Notice) => n.kind !== 'CANCELLED';
 
 function prepareLines(n: Notice) {
+  if (!showsPreparation(n)) return [];
   const steps = noticePreparation(n);
   return [`🪪 สิ่งที่ต้องนำมา : ${NOTICE_PREPARE.join(', ')}`, ...(steps.length ? ['📝 การเตรียมตัวก่อนรับการตรวจ', ...steps.map(s => `   - ${s}`)] : [])];
 }
@@ -80,7 +87,7 @@ export function noticeText(n: Notice) {
     '',
     ...prepareLines(n),
     '',
-    ...NOTICE_FOOTER.map(line => `• ${line}`),
+    ...noticeFooter(n).map(line => `• ${line}`),
   ].join('\n');
 }
 
@@ -89,14 +96,14 @@ export function noticeText(n: Notice) {
 export type OutboundMessage = { name: string; title: string; text: string; html: string; notice?: Notice };
 const escapeHtml = (v: string) => v.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 export function noticeCardText(n: Notice) {
-  return [noticeLead(n), '', ...noticeRows(n).map(([icon, label, value]) => `${icon} ${label} : ${value}`), '', ...prepareLines(n), '', ...NOTICE_FOOTER].join('\n');
+  return [noticeLead(n), '', ...noticeRows(n).map(([icon, label, value]) => `${icon} ${label} : ${value}`), '', ...prepareLines(n), '', ...noticeFooter(n)].join('\n');
 }
 export function noticeHtml(n: Notice) {
   return `<div><strong>${escapeHtml(noticeTitle(n))}</strong><br/>${escapeHtml(noticeLead(n))}<br/>`
     + noticeRows(n).map(([, label, value]) => `<strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}`).join('<br/>')
-    + `<br/><br/><strong>สิ่งที่ต้องนำมา:</strong> ${escapeHtml(NOTICE_PREPARE.join(', '))}`
-    + (noticePreparation(n).length ? `<br/><strong>การเตรียมตัวก่อนรับการตรวจ:</strong><br/>${noticePreparation(n).map(s => '- ' + escapeHtml(s)).join('<br/>')}` : '')
-    + `<br/><br/>${NOTICE_FOOTER.map(escapeHtml).join('<br/>')}</div>`;
+    + (showsPreparation(n) ? `<br/><br/><strong>สิ่งที่ต้องนำมา:</strong> ${escapeHtml(NOTICE_PREPARE.join(', '))}` : '')
+    + (showsPreparation(n) && noticePreparation(n).length ? `<br/><strong>การเตรียมตัวก่อนรับการตรวจ:</strong><br/>${noticePreparation(n).map(s => '- ' + escapeHtml(s)).join('<br/>')}` : '')
+    + `<br/><br/>${noticeFooter(n).map(escapeHtml).join('<br/>')}</div>`;
 }
 export function noticeMessage(n: Notice): OutboundMessage {
   return { name: n.name, title: noticeTitle(n), text: noticeCardText(n), html: noticeHtml(n), notice: n };
@@ -105,7 +112,7 @@ export function plainMessage(text: string, title = 'แจ้งเตือน�
   return { name, title, text, html: `<div>${escapeHtml(text).replace(/\n/g, '<br/>')}</div>` };
 }
 
-export const NOTICE_COLORS: Record<NoticeKind, string> = { NEW: '#0D5B44', MANUAL: '#0D5B44', REMINDER: '#B45309', CHANGED: '#1D4ED8' };
+export const NOTICE_COLORS: Record<NoticeKind, string> = { NEW: '#0D5B44', MANUAL: '#0D5B44', REMINDER: '#B45309', CHANGED: '#1D4ED8', CANCELLED: '#B91C1C' };
 // Our own LINE Flex bubble (designed per LINE Developers Flex Message spec).
 // logoUrl must be public HTTPS; without it the header shows text only.
 export function noticeFlex(n: Notice, logoUrl?: string) {
@@ -128,13 +135,13 @@ export function noticeFlex(n: Notice, logoUrl?: string) {
         { type: 'text', text: noticeLead(n), size: 'sm', color: '#374151', wrap: true },
         { type: 'separator', margin: 'md' },
         { type: 'box', layout: 'vertical', spacing: 'sm', margin: 'md', contents: noticeRows(n).map(row) },
-        { type: 'box', layout: 'vertical', margin: 'lg', backgroundColor: '#FFF7E6', cornerRadius: '10px', paddingAll: '12px', spacing: 'xs', contents: [
+        ...(!showsPreparation(n) ? [] : [{ type: 'box', layout: 'vertical', margin: 'lg', backgroundColor: '#FFF7E6', cornerRadius: '10px', paddingAll: '12px', spacing: 'xs', contents: [
           { type: 'text', text: '🪪 สิ่งที่ต้องนำมา', weight: 'bold', size: 'sm', color: '#92400E' },
           ...NOTICE_PREPARE.map(item => ({ type: 'text', text: `• ${item}`, size: 'sm', color: '#78350F', wrap: true })),
           ...(noticePreparation(n).length ? [{ type: 'text', text: '📝 การเตรียมตัวก่อนรับการตรวจ', weight: 'bold', size: 'sm', color: '#92400E', margin: 'md' },
-            ...noticePreparation(n).map(item => ({ type: 'text', text: `• ${item}`, size: 'sm', color: '#78350F', wrap: true }))] : [])] }] },
+            ...noticePreparation(n).map(item => ({ type: 'text', text: `• ${item}`, size: 'sm', color: '#78350F', wrap: true }))] : [])] }])] },
       footer: { type: 'box', layout: 'vertical', spacing: 'xs', paddingAll: '14px', backgroundColor: '#F7F9F8', contents:
-        NOTICE_FOOTER.map(text => ({ type: 'text', text: `• ${text}`, size: 'xs', color: '#6B7280', wrap: true })) },
+        noticeFooter(n).map(text => ({ type: 'text', text: `• ${text}`, size: 'xs', color: '#6B7280', wrap: true })) },
     },
   };
 }

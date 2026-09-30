@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { getOapp, readPersonnelOapp, withEmployees } from './hosxp';
+import { getOapp, readPersonnelOapp, withEmployees, oappSourceState } from './hosxp';
 import { rows, execute, transaction } from './db';
 import { canonicalJson, sha256 } from './crypto';
 import { addDays, bangkokNow } from '../domain/validation';
@@ -23,7 +23,8 @@ export function futureHosxpAppointment(date: string, time: string | null, now = 
   return time == null ? date >= day : `${date} ${time}` > `${day} ${clock}:00`;
 }
 
-export async function syncHosxpAppointments(now = new Date(), readSource: (params: URLSearchParams) => Promise<{data: SourceAppointment[]}> = getOapp) {
+export async function syncHosxpAppointments(now = new Date(), readSource: (params: URLSearchParams) => Promise<{data: SourceAppointment[]}> = getOapp,
+  checkSource: (ids: string[]) => Promise<Map<string, { status: unknown }>> = oappSourceState) {
   const from = bangkokNow(now).day, to = addDays(from, 366);
   await ensureFiscalYears([from]);
   // Serializes the source read and snapshot across worker processes. No writes to HOSxP.
@@ -39,6 +40,8 @@ export async function syncHosxpAppointments(now = new Date(), readSource: (param
       seen.add(a.oapp_id);
       const old = byId.get(a.oapp_id), fingerprint = hosxpFingerprint(a);
       const active = activeHosxpStatus(a.source_status_id) && futureHosxpAppointment(a.appointment_date, a.appointment_time, now);
+      // Cancelled in HOSxP: a future appointment whose status moved out of the active statuses.
+      const cancelled = !!old?.active && !activeHosxpStatus(a.source_status_id) && futureHosxpAppointment(a.appointment_date, a.appointment_time, now);
       if (old && old.fingerprint === fingerprint && !!old.active === active) {
         await execute('UPDATE hosxp_appointments SET depcode=?,doctor_code=?,doctor_name=? WHERE oapp_id=?',[a.depcode,a.doctor_code,a.doctor_name,a.oapp_id],db);
         continue;
@@ -55,15 +58,29 @@ export async function syncHosxpAppointments(now = new Date(), readSource: (param
         await execute(`INSERT INTO notification_jobs(id,hosxp_oapp_id,schedule_version,scheduled_at,available_at)
           VALUES(?,?,?,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))`, [randomUUID(), a.oapp_id, version], db);
       }
+      if (state.initialized && settings.enabled && cancelled) await queueCancelNotice(a.oapp_id, version, db);
     }
     // Deleted, moved out of the monitored range, or no longer in the personnel register.
-    for (const old of previous) if (old.active && !seen.has(String(old.oapp_id))) {
+    const gone = previous.filter(old => old.active && !seen.has(String(old.oapp_id)));
+    // Only a future appointment that is really gone from HOSxP (or no longer active there) is a cancellation;
+    // one that just passed, or left the personnel match, is quietly closed.
+    const future = gone.filter(old => futureHosxpAppointment(String(old.appointment_date).slice(0, 10), (old.appointment_time as string | null) ?? null, now));
+    const source = future.length && state.initialized && settings.enabled ? await checkSource(future.map(old => String(old.oapp_id))) : new Map();
+    for (const old of gone) {
       await execute('UPDATE hosxp_appointments SET active=0,schedule_version=schedule_version+1 WHERE oapp_id=?', [old.oapp_id], db);
       await execute("UPDATE notification_jobs SET status='CANCELLED',safe_error='HOSXP_APPOINTMENT_REMOVED' WHERE hosxp_oapp_id=? AND status IN ('PENDING','BLOCKED')", [old.oapp_id], db);
+      const id = String(old.oapp_id), inSource = source.get(id);
+      if (future.includes(old) && state.initialized && settings.enabled && (!inSource || !activeHosxpStatus(inSource.status)))
+        await queueCancelNotice(id, Number(old.schedule_version) + 1, db);
     }
     await execute('UPDATE hosxp_sync_state SET initialized=1,last_success_at=UTC_TIMESTAMP(6) WHERE id=1', [], db);
     return data.length;
   });
+}
+
+async function queueCancelNotice(oappId: string, version: number, db: Parameters<typeof execute>[2]) {
+  await execute(`INSERT IGNORE INTO notification_jobs(id,hosxp_oapp_id,schedule_version,kind,dedupe_key,scheduled_at,available_at)
+    VALUES(?,?,?,'CANCELLED','cancel',UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))`, [randomUUID(), oappId, version], db);
 }
 
 export async function hosxpAppointmentStillCurrent(a: RecordRow) {
