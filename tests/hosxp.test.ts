@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { oappRange, readPersonnelOapp, tickedLabs, preparationNotes, type OappReader } from '../src/server/hosxp';
+import { oappRange, readPersonnelOapp, tickedLabs, preparationNotes, visitCharges, type OappReader } from '../src/server/hosxp';
 import { hosxpFingerprint, activeHosxpStatus, futureHosxpAppointment } from '../src/server/hosxp-sync';
 import { reminderText } from '../src/server/notifications';
 import { fiscalYearForDate } from '../src/domain/validation';
@@ -157,4 +157,26 @@ test('appointments without depcode are placed by clinic name (older physio and T
   assert.deepEqual(data.map(a=>[a.oapp_id,a.room_name]),[['physio','กายภาพบำบัด'],['imc','กายภาพบำบัด'],['thai','แพทย์แผนไทย'],['physio-dep','กายภาพบำบัด']]);
   const physioOnly=await readPersonnelOapp(range,{room:'033'},async()=>[{...appointment,oapp_id:'physio',depcode:'',clinic_name:'กายภาพบำบัด'}] as never);
   assert.equal(physioOnly.length,1);
+});
+
+test('visit charges sum procedures per VN, count ICD-10 only, and bind every VN', async () => {
+  const seen: string[][] = [];
+  const charges = await visitCharges(['660101080000', '660101080000', null, 'bad vn', '660101080001'], async (sql, values) => {
+    seen.push(values);
+    assert.doesNotMatch(sql, /660101/);
+    if (/opitemrece/.test(sql)) {
+      assert.match(sql, /JOIN nondrugitems n ON n.icode=o.icode/);
+      return [{ vn: '660101080000', icode: '3000001', name: 'นวดพร้อมประคบสมุนไพร', qty: '1', amount: '250.00' },
+        { vn: '660101080000', icode: '3000002', name: 'อบไอน้ำสมุนไพร', qty: '2', amount: '120.50' }];
+    }
+    assert.match(sql, /FROM ovstdiag d LEFT JOIN icd101 i ON i.code=d.icd10/);
+    return [{ vn: '660101080000', code: 'm545', name: 'Low back pain' }, { vn: '660101080000', code: '9007', name: 'ICD-9 op' },
+      { vn: '660101080000', code: 'M545', name: 'Low back pain' }, { vn: '660101080001', code: 'Z000', name: null }];
+  });
+  assert.deepEqual(seen, [['660101080000', '660101080001'], ['660101080000', '660101080001']]);
+  assert.deepEqual(charges.get('660101080000'), { amount: 370.5,
+    procedures: [{ name: 'นวดพร้อมประคบสมุนไพร', qty: 1, amount: 250 }, { name: 'อบไอน้ำสมุนไพร', qty: 2, amount: 120.5 }],
+    icd10: [{ code: 'M545', name: 'Low back pain' }] });
+  assert.deepEqual(charges.get('660101080001'), { amount: 0, procedures: [], icd10: [{ code: 'Z000', name: '' }] });
+  assert.equal((await visitCharges([], async () => { throw Error('not called'); })).size, 0);
 });

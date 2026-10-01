@@ -61,3 +61,5 @@ section[aria-label="ปฏิทินตรวจสุขภาพ"] .service-
 small.lab-tests{display:block;color:#763993}
 .notice-card.kind-cancelled .notice-card-head{background:#b91c1c}
 .notice-card.kind-cancelled .notice-card-head{background:#b91c1c}
+.metrics.five{grid-template-columns:repeat(5,1fr)}td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}td small{display:block}
+@media(max-width:780px){.metrics.five{grid-template-columns:repeat(2,1fr)}.metrics.five>div:last-child{grid-column:1/-1}}

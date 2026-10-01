@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { z } from 'zod';
 import type { Actor } from './auth';
-import { readPersonnelOapp, withEmployees } from './hosxp';
+import { readPersonnelOapp, visitCharges, withEmployees } from './hosxp';
 import { activeHosxpStatus } from './hosxp-sync';
 import { bangkokNow, date, ensure, fiscalRange, fiscalYearForDate } from '../domain/validation';
 import { HOSXP_ROOMS } from '../domain/hosxp';
@@ -24,36 +24,59 @@ export async function hosxpReport(params: URLSearchParams, actor: Actor) {
   const data = (await withEmployees(source, actor))
     .map(a => ({ ...a, status: reportStatus(a, today) }))
     .filter(a => (!status || a.status === status) && (!q || a.display_name.replace(/\s+/g, '').includes(q)));
-  const count = (list: typeof data) => ({
+  // Money per visit (procedures billed in HOSxP) for every appointment the person came to.
+  const charges = await visitCharges(data.filter(a => a.status === 'ATTENDED').map(a => a.visit_vn));
+  const charged = data.map(a => ({ ...a, charge: a.visit_vn ? charges.get(a.visit_vn) : undefined }));
+  const count = (list: typeof charged) => ({
     appointments: list.length, people: new Set(list.map(a => a.personnel_code)).size,
     attended: list.filter(a => a.status === 'ATTENDED').length,
     pending: list.filter(a => a.status === 'PENDING').length,
     missed: list.filter(a => a.status === 'MISSED').length,
+    // One visit can serve several appointments on the same day: count its money once.
+    amount: [...new Map(list.filter(a => a.charge).map(a => [a.visit_vn, a.charge!.amount])).values()].reduce((t, v) => Math.round((t + v) * 100) / 100, 0),
   });
-  const rooms = HOSXP_ROOMS.map(room => ({ code: room.code, name: room.name, ...count(data.filter(a => a.depcode === room.code)) }));
+  const rooms = HOSXP_ROOMS.map(room => ({ code: room.code, name: room.name, ...count(charged.filter(a => a.depcode === room.code)) }));
+  const byProcedure = new Map<string, { name: string; visits: number; qty: number; amount: number }>();
+  for (const charge of new Map(charged.filter(a => a.charge).map(a => [a.visit_vn, a.charge!])).values())
+    for (const p of charge.procedures) {
+      const total = byProcedure.get(p.name) ?? byProcedure.set(p.name, { name: p.name, visits: 0, qty: 0, amount: 0 }).get(p.name)!;
+      total.visits++; total.qty += p.qty; total.amount = Math.round((total.amount + p.amount) * 100) / 100;
+    }
+  const procedures = [...byProcedure.values()].sort((a, b) => b.amount - a.amount);
   const hr = await hrLookup();
-  const rows = data.map(a => ({ oapp_id: a.oapp_id, display_name: a.display_name,
+  const rows = charged.map(a => ({ oapp_id: a.oapp_id, display_name: a.display_name,
     work_group: hr(a.personnel_code, a.display_name)?.work_group ?? '', appointment_date: a.appointment_date,
     appointment_time: a.appointment_time, room_name: a.room_name, doctor_name: a.doctor_name, location: a.location,
-    fiscal_year: a.fiscal_year, status: a.status }));
-  return { from, to, summary: count(data), rooms, rows };
+    fiscal_year: a.fiscal_year, status: a.status,
+    amount: a.charge?.amount ?? null, procedures: a.charge?.procedures ?? [], icd10: a.charge?.icd10 ?? [] }));
+  return { from, to, summary: count(charged), rooms, procedures, rows };
 }
 
 export async function hosxpReportExcel(params: URLSearchParams, actor: Actor) {
   const report = await hosxpReport(params, actor), book = new ExcelJS.Workbook();
   const sheet = book.addWorksheet('นัดหมาย');
-  sheet.addRow(['เลขนัด HOSxP', 'บุคลากร', 'กลุ่มงาน', 'วันที่นัด', 'เวลา', 'ปีงบประมาณ', 'ห้องบริการ', 'ผู้ให้บริการ', 'จุดติดต่อ', 'สถานะ']);
+  sheet.addRow(['เลขนัด HOSxP', 'บุคลากร', 'กลุ่มงาน', 'วันที่นัด', 'เวลา', 'ปีงบประมาณ', 'ห้องบริการ', 'ผู้ให้บริการ', 'จุดติดต่อ', 'สถานะ',
+    'ICD-10', 'หัตถการ', 'ค่าบริการ (บาท)']);
   for (const a of report.rows) sheet.addRow([a.oapp_id, a.display_name, a.work_group, a.appointment_date, a.appointment_time?.slice(0, 5) ?? '',
-    a.fiscal_year, a.room_name, a.doctor_name ?? '', a.location, REPORT_STATUS[a.status]]);
+    a.fiscal_year, a.room_name, a.doctor_name ?? '', a.location, REPORT_STATUS[a.status],
+    a.icd10.map(c => c.name ? `${c.code} ${c.name}` : c.code).join('\n'),
+    a.procedures.map(p => `${p.name} x${p.qty} = ${p.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`).join('\n'), a.amount ?? '']);
   const summary = book.addWorksheet('สรุปตามห้อง');
-  summary.addRow(['ห้องบริการ', 'นัดทั้งหมด', 'จำนวนคน', 'มาตามนัด', 'รอตรวจ', 'ไม่มาตามนัด']);
-  for (const r of report.rooms) summary.addRow([r.name, r.appointments, r.people, r.attended, r.pending, r.missed]);
+  summary.addRow(['ห้องบริการ', 'นัดทั้งหมด', 'จำนวนคน', 'มาตามนัด', 'รอตรวจ', 'ไม่มาตามนัด', 'ค่าบริการ (บาท)']);
+  for (const r of report.rooms) summary.addRow([r.name, r.appointments, r.people, r.attended, r.pending, r.missed, r.amount]);
   const s = report.summary;
-  summary.addRow(['รวม', s.appointments, s.people, s.attended, s.pending, s.missed]);
-  for (const ws of [sheet, summary]) {
+  summary.addRow(['รวม', s.appointments, s.people, s.attended, s.pending, s.missed, s.amount]);
+  const byProcedure = book.addWorksheet('สรุปตามหัตถการ');
+  byProcedure.addRow(['หัตถการ', 'จำนวนครั้งที่มารับบริการ', 'จำนวน', 'ค่าบริการ (บาท)']);
+  for (const p of report.procedures) byProcedure.addRow([p.name, p.visits, p.qty, p.amount]);
+  byProcedure.addRow(['รวม', '', '', s.amount]);
+  for (const ws of [sheet, summary, byProcedure]) {
     ws.views = [{ state: 'frozen', ySplit: 1 }]; ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
     ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF18584A' } };
     ws.columns.forEach(c => c.width = 22);
   }
+  sheet.getColumn(11).width = sheet.getColumn(12).width = 45;
+  for (const col of [11, 12]) sheet.getColumn(col).alignment = { wrapText: true, vertical: 'top' };
+  for (const [ws, col] of [[sheet, 13], [summary, 7], [byProcedure, 4]] as const) ws.getColumn(col).numFmt = '#,##0.00';
   return Buffer.from(await book.xlsx.writeBuffer());
 }
