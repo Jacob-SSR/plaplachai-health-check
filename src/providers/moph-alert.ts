@@ -10,10 +10,15 @@ export function publicLogoUrl() {
   const explicit=process.env.PUBLIC_LOGO_URL?.trim();if(explicit?.startsWith('https://'))return explicit;
   const origin=process.env.APP_ORIGIN?.trim();return origin?.startsWith('https://')?`${origin.replace(/\/$/,'')}/hospital-logo.png`:undefined;
 }
+// Hospital photo for the card header (public/hospital-header.jpg), served from the same place as the logo.
+export function publicHeaderUrl() {
+  const explicit=process.env.PUBLIC_HEADER_URL?.trim();if(explicit?.startsWith('https://'))return explicit;
+  const logo=publicLogoUrl();return logo?.endsWith('/hospital-logo.png')?logo.replace(/hospital-logo\.png$/,'hospital-header.jpg'):undefined;
+}
 export function mophMode(){const m=process.env.MOPH_API_MODE?.trim();return m==='template'||m==='freeform'?m:'flex';}
 export function mophRequest(cid:string,message:OutboundMessage,mode:string=mophMode()){
   const base={message_title:message.title,message_text:message.title,message_type:'HPT'};
-  if(mode==='flex'&&message.notice)return {url:'https://morpromt2c.moph.go.th/alert/v3.1/messages',body:{cid:[cid],messages:[noticeFlex(message.notice,publicLogoUrl())],...base,message_html:message.html}};
+  if(mode==='flex'&&message.notice)return {url:'https://morpromt2c.moph.go.th/alert/v3.1/messages',body:{cid:[cid],messages:[noticeFlex(message.notice,publicLogoUrl(),publicHeaderUrl())],...base,message_html:message.html}};
   if(mode==='freeform'||mode==='flex')return {url:'https://morpromt2c.moph.go.th/alert/v3.1/messages',body:{cid:[cid],messages:[{type:'text',text:message.name?`คุณ${message.name}\n${message.text}`:message.text}],...base}};
   return {url:'https://morpromt2c.moph.go.th/alert/v3.1/template',body:{cid,name:message.name||'บุคลากรโรงพยาบาลพลับพลาชัย',template:process.env.MOPH_TEMPLATE_NAME?.trim()||'ยินดีต้อนรับ',
     header:message.title,text:message.text,...base,message_html:message.html}};

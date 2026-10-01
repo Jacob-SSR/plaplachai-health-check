@@ -96,3 +96,30 @@ test('cancellation notice says the appointment is cancelled, asks nothing to be 
   const flex = JSON.stringify(noticeFlex({ ...notice, kind: 'CANCELLED' }));
   assert.ok(flex.includes('#B91C1C') && !flex.includes('สิ่งที่ต้องนำมา'));
 });
+
+test('flex card: photo header fading into the notice colour, date box first, plain header without a photo', async () => {
+  const n: Notice = { kind: 'NEW', name: 'ทดสอบ', date: '2027-01-29', time: '09:00:00', service: 'ทันตกรรม', location: 'ห้องบัตร' };
+  const card = noticeFlex(n, 'https://example.test/hospital-logo.png', 'https://example.test/hospital-header.jpg') as { contents: { header: { contents: Record<string, unknown>[] }; body: { contents: Record<string, unknown>[] } } };
+  const [photo, fade, content] = card.contents.header.contents;
+  assert.deepEqual([photo.type, photo.url, photo.aspectMode, photo.aspectRatio], ['image', 'https://example.test/hospital-header.jpg', 'cover', '20:13']);
+  assert.deepEqual(fade.background, { type: 'linearGradient', angle: '0deg', startColor: '#0D5B44', centerColor: '#0D5B44CC', centerPosition: '45%', endColor: '#0D5B4400' });
+  for (const layer of [fade, content]) assert.equal(layer.position, 'absolute');
+  assert.ok(JSON.stringify(content).includes('hospital-logo.png'));
+  const body = JSON.stringify(card.contents.body);
+  for (const part of ['เรียน คุณทดสอบ', '"text":"29"', 'ม.ค. 70', 'วันศุกร์ที่ 29 มกราคม 2570', '09:00 น.', 'ห้องบัตร', 'สิ่งที่ต้องนำมา']) assert.ok(body.includes(part), part);
+  const red = noticeFlex({ ...n, kind: 'CANCELLED' }, undefined, 'https://example.test/hospital-header.jpg') as typeof card;
+  assert.equal((red.contents.header.contents[1].background as { startColor: string }).startColor, '#B91C1C');
+  assert.ok(JSON.stringify(red.contents.body).includes('line-through'), 'cancelled date and time are struck through');
+  assert.ok(!JSON.stringify(red.contents.body).includes('สิ่งที่ต้องนำมา'));
+  assert.ok(JSON.stringify(noticeFlex({ ...n, time: null })).includes('โปรดติดต่อเจ้าหน้าที่เพื่อยืนยันเวลา'));
+  const plain = JSON.stringify(noticeFlex(n, 'https://example.test/hospital-logo.png'));
+  assert.ok(!plain.includes('hospital-header.jpg') && !plain.includes('linearGradient'), 'no photo URL: plain colour header');
+  const { publicHeaderUrl } = await import('../src/providers/moph-alert');
+  const saved = { ...process.env };
+  try {
+    Object.assign(process.env, { APP_ORIGIN: 'https://hc.example.test/', PUBLIC_LOGO_URL: '', PUBLIC_HEADER_URL: '' });
+    assert.equal(publicHeaderUrl(), 'https://hc.example.test/hospital-header.jpg');
+    Object.assign(process.env, { APP_ORIGIN: 'http://192.168.1.5:5600' });
+    assert.equal(publicHeaderUrl(), undefined, 'LINE cannot load a LAN or http address');
+  } finally { process.env = saved; }
+});
