@@ -1,24 +1,30 @@
 'use client';
 import { useState } from 'react';
-import { HOSPITAL_NAME, noticeFooter, showsPreparation, NOTICE_PREPARE, noticePreparation, noticeLead, noticeRows, noticeTitle, type Notice, type NoticeKind } from '@/src/domain/notice';
+import { HOSPITAL_NAME, noticeFooter, showsPreparation, NOTICE_PREPARE, noticePreparation, noticeLead, noticeRows, noticeTitle, thaiLongDate, type Notice, type NoticeKind } from '@/src/domain/notice';
 
 const SAMPLE: Omit<Notice, 'kind'> = { name: 'ตัวอย่าง บุคลากร', date: '2027-01-29', time: '08:30:00', service: 'แพทย์แผนไทย', location: 'ห้องบัตร', daysBefore: 2 };
 const LAB_SAMPLE: Omit<Notice, 'kind'> = { ...SAMPLE, service: 'LAB', location: 'ห้องปฏิบัติการ', tests: ['CBC', 'FBS', 'Cholesterol', 'Triglyceride', 'Creatinine', 'UA'] };
 const KINDS: [NoticeKind, string][] = [['NEW', 'ลงนัดครั้งแรก'], ['REMINDER', 'ก่อนวันนัด 2 วัน'], ['CHANGED', 'เลื่อนนัด'], ['MANUAL', 'กดส่งเอง'], ['CANCELLED', 'ยกเลิกนัด']];
 
-// Same layout as noticeFlex(): header with hospital logo, name box, details, notes.
+// Same layout as noticeFlex(): photo header fading into the notice colour, date box, detail rows, notes.
+const datePart = (day: string, options: Intl.DateTimeFormatOptions) =>
+  new Intl.DateTimeFormat('th-TH', { ...options, timeZone: 'Asia/Bangkok' }).format(new Date(`${day}T00:00:00+07:00`));
 export function NoticeCard({ notice }: { notice: Notice }) {
+  const steps = noticePreparation(notice), cancelled = notice.kind === 'CANCELLED';
   return <div className={`notice-card kind-${notice.kind.toLowerCase()}`}>
-    <div className="notice-card-head"><span className="notice-card-logo"><img src="/hospital-logo.png" alt="" width={44} height={44}/* eslint-disable-line @next/next/no-img-element *//></span>
-      <div><small>{HOSPITAL_NAME}</small><strong>{noticeTitle(notice)}</strong></div></div>
-    <div className="notice-card-body">
-      <div className="notice-card-name">คุณ{notice.name}</div>
-      <p className="notice-card-lead">{noticeLead(notice)}</p>
-      <dl>{noticeRows(notice).map(([icon, label, value]) => <div key={label}><dt>{icon} {label}</dt><dd>{value}</dd></div>)}</dl>
-      {showsPreparation(notice) && <div className="notice-card-prepare"><strong>🪪 สิ่งที่ต้องนำมา</strong><ul>{NOTICE_PREPARE.map(item => <li key={item}>{item}</li>)}</ul>
-        {noticePreparation(notice).length > 0 && <><strong>📝 การเตรียมตัวก่อนรับการตรวจ</strong><ul>{noticePreparation(notice).map(item => <li key={item}>{item}</li>)}</ul></>}</div>}
+    <div className="nc-head"><div className="nc-head-text">
+      <span className="nc-org"><img src="/hospital-logo.png" alt="" width={28} height={28}/* eslint-disable-line @next/next/no-img-element */ />{HOSPITAL_NAME}</span>
+      <strong>{noticeTitle(notice)}</strong></div></div>
+    <div className="nc-body">
+      <p className="nc-greet">เรียน คุณ{notice.name}</p>
+      <p className="nc-lead">{noticeLead(notice)}</p>
+      <div className={`nc-when${cancelled ? ' struck' : ''}`}><span className="nc-tile"><b>{datePart(notice.date, { day: 'numeric' })}</b>{datePart(notice.date, { month: 'short', year: '2-digit' })}</span>
+        <span><span className="nc-date">{thaiLongDate(notice.date)}</span><span className="nc-time">{notice.time ? `${notice.time.slice(0, 5)} น.` : 'โปรดติดต่อเจ้าหน้าที่เพื่อยืนยันเวลา'}</span></span></div>
+      <dl className="nc-rows">{noticeRows(notice).slice(2).map(([, label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+      {showsPreparation(notice) && <div className="nc-prepare"><strong>สิ่งที่ต้องนำมา</strong><ul>{NOTICE_PREPARE.map(item => <li key={item}>{item}</li>)}</ul>
+        {steps.length > 0 && <><strong>การเตรียมตัวก่อนรับการตรวจ</strong><ul>{steps.map(item => <li key={item}>{item}</li>)}</ul></>}</div>}
     </div>
-    <ul className="notice-card-foot">{noticeFooter(notice).map(line => <li key={line}>{line}</li>)}</ul>
+    <ul className="nc-foot">{noticeFooter(notice).map(line => <li key={line}>{line}</li>)}</ul>
   </div>;
 }
 
