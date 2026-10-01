@@ -2,7 +2,7 @@ import mysql, { type RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 import { rows } from './db';
 import { scopeSql, type Actor } from './auth';
-import { addDays, bangkokNow, date, ensure, fiscalYearForDate } from '../domain/validation';
+import { addDays, AppError, bangkokNow, date, ensure, fiscalYearForDate } from '../domain/validation';
 import { HOSXP_ROOMS,hosxpRoom,roomForAppointment,LAB_ROOM } from '../domain/hosxp';
 import { syncDoctorPersonnel, type DoctorPerson } from './hosxp-personnel';
 
@@ -95,6 +95,7 @@ export async function readPersonnelOapp(range: { from: string; to: string }, fil
       source_status_id: row.oapp_status_id, source_updated_at: row.update_datetime,
       // HOSxP links the visit to the appointment when the person came (visit_vn).
       visited: String(row.visit_vn ?? '').trim() !== '',
+      visit_vn: String(row.visit_vn ?? '').trim() || null,
       has_lab: hasLab, lab_ticked: ticked,
       // Preparation instructions ticked in HOSxP (fixed hospital wording, no clinical notes).
       prep_notes: preparationNotes(row as unknown as Record<string, unknown>),
@@ -155,6 +156,44 @@ export async function withLabTests<T extends { oapp_id: string; has_lab?: boolea
   const lab = data.filter(a => a.has_lab);
   const tests = lab.length ? await hosxpLabTests(lab.map(a => a.oapp_id)) : new Map<string, string[]>();
   return data.map(a => ({ ...a, lab_tests: [...new Set([...(a.lab_ticked ?? []), ...(tests.get(a.oapp_id) ?? [])])] }));
+}
+
+// What each visit was charged, per procedure, and its ICD-10 codes. Read only, by VN (oapp.visit_vn).
+// Procedures = non-drug items billed in the visit (opitemrece -> nondrugitems); drugs are left out.
+// ICD-10 = ovstdiag codes named from icd101 (Thai name first); ICD-9 operation codes (all digits) are left out.
+export type VisitCharge = { amount: number; procedures: { name: string; qty: number; amount: number }[]; icd10: { code: string; name: string }[] };
+export type ChargeReader = (sql: string, values: string[]) => Promise<Record<string, unknown>[]>;
+const chargeReader: ChargeReader = async (sql, values) => {
+  try {
+    const [result] = await hosxpPool().execute<RowDataPacket[]>({ sql, values, timeout: 15000 });
+    return result as Record<string, unknown>[];
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    console.error({ code: 'HOSXP_CHARGES', message: error instanceof Error ? error.message.slice(0, 200) : '' });
+    throw new AppError(503, 'HOSXP_CHARGES', 'อ่านค่าบริการหรือ ICD-10 จาก HOSxP ไม่ได้ (opitemrece, nondrugitems, ovstdiag, icd101)');
+  }
+};
+const money = (v: unknown) => Math.round((Number(v) || 0) * 100) / 100;
+export async function visitCharges(vns: (string | null | undefined)[], read: ChargeReader = chargeReader) {
+  const map = new Map<string, VisitCharge>();
+  const ids = [...new Set(vns.map(v => String(v ?? '').trim()))].filter(v => /^[0-9A-Za-z]{1,20}$/.test(v));
+  const get = (vn: string) => map.get(vn) ?? map.set(vn, { amount: 0, procedures: [], icd10: [] }).get(vn)!;
+  for (let i = 0; i < ids.length; i += 200) {
+    const batch = ids.slice(i, i + 200), marks = batch.map(() => '?').join(',');
+    for (const row of await read(`SELECT o.vn,o.icode,n.name,SUM(o.qty) qty,SUM(o.sum_price) amount
+      FROM opitemrece o JOIN nondrugitems n ON n.icode=o.icode WHERE o.vn IN (${marks})
+      GROUP BY o.vn,o.icode,n.name ORDER BY o.vn,n.name`, batch)) {
+      const v = get(String(row.vn)), amount = money(row.amount);
+      v.procedures.push({ name: String(row.name ?? row.icode ?? '').trim(), qty: Number(row.qty) || 0, amount });
+      v.amount = money(v.amount + amount);
+    }
+    for (const row of await read(`SELECT d.vn,d.icd10 code,COALESCE(NULLIF(i.tname,''),i.name) name FROM ovstdiag d LEFT JOIN icd101 i ON i.code=d.icd10
+      WHERE d.vn IN (${marks}) ORDER BY d.vn,d.diagtype,d.icd10`, batch)) {
+      const code = String(row.code ?? '').trim().toUpperCase(), v = get(String(row.vn));
+      if (/^[A-Z]\d/.test(code) && !v.icd10.some(c => c.code === code)) v.icd10.push({ code, name: String(row.name ?? '').trim() });
+    }
+  }
+  return map;
 }
 
 // Whether appointments still exist in HOSxP and their status, to tell a real cancellation (row deleted or

@@ -7,10 +7,13 @@ import { HOSXP_ROOMS } from '@/src/domain/hosxp';
 import { PeriodPicker } from './period-picker';
 
 const STATUS: Record<string, string> = { ATTENDED: 'มาตามนัด', PENDING: 'รอตรวจ', MISSED: 'ไม่มาตามนัด' };
-type Count = { appointments: number; people: number; attended: number; pending: number; missed: number };
+type Count = { appointments: number; people: number; attended: number; pending: number; missed: number; amount: number };
+type Procedure = { name: string; qty: number; amount: number };
 type Row = { oapp_id: string; display_name: string; work_group: string; appointment_date: string; appointment_time: string | null;
-  room_name: string; doctor_name: string | null; location: string; fiscal_year: number; status: string };
-type Report = { summary: Count; rooms: (Count & { code: string; name: string })[]; rows: Row[] };
+  room_name: string; doctor_name: string | null; location: string; fiscal_year: number; status: string;
+  amount: number | null; procedures: Procedure[]; icd10: { code: string; name: string }[] };
+type Report = { summary: Count; rooms: (Count & { code: string; name: string })[]; procedures: (Procedure & { visits: number })[]; rows: Row[] };
+const baht = (v: number) => v.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export function HosxpReport({ api, canExport }: { api: Api; canExport: boolean }) {
   const year = fiscalYearForDate(bangkokNow().day), range = fiscalRange(year);
@@ -31,7 +34,7 @@ export function HosxpReport({ api, canExport }: { api: Api; canExport: boolean }
   }, [api, query]);
   const s = report?.summary;
   return <><div className="section-head"><div><h2>รายงานการตรวจสุขภาพ</h2>
-    <p className="muted">อ่านนัดจาก HOSxP · ค่าเริ่มต้นปีงบประมาณ {year} · สถานะดูจากการมาตามนัดใน HOSxP (visit_vn)</p></div>
+    <p className="muted">อ่านนัดจาก HOSxP · ค่าเริ่มต้นปีงบประมาณ {year} · สถานะดูจากการมาตามนัดใน HOSxP (visit_vn) · ค่าบริการจากหัตถการที่เรียกเก็บในแต่ละครั้งที่มา</p></div>
     <div className="actions"><button onClick={() => window.print()}><Printer size={16}/>พิมพ์ / PDF</button>
       {canExport && <a className="button" href={`/api/v1/exports/appointments?${query}`}><Download size={16}/>ข้อมูลนัด Excel</a>}</div></div>
     <div className="surface"><div className="filters">
@@ -43,22 +46,30 @@ export function HosxpReport({ api, canExport }: { api: Api; canExport: boolean }
     {error && <p className="error" role="alert">{error}</p>}
     {busy && <p role="status" className="muted">กำลังอ่านข้อมูลจาก HOSxP…</p>}
     {report && !error && <>
-      <div className="metrics">
+      <div className="metrics five">
         <div><span>นัดหมายทั้งหมด</span><strong>{s!.appointments.toLocaleString()}<small>นัด</small></strong><p>{s!.people.toLocaleString()} คน</p></div>
         <div><span>มาตามนัด</span><strong>{s!.attended.toLocaleString()}<small>นัด</small></strong><p>{s!.appointments ? Math.round(s!.attended / s!.appointments * 100) : 0}% ของนัดทั้งหมด</p></div>
         <div><span>รอตรวจ</span><strong>{s!.pending.toLocaleString()}<small>นัด</small></strong><p>ยังไม่ถึงวันนัด</p></div>
         <div><span>ไม่มาตามนัด</span><strong>{s!.missed.toLocaleString()}<small>นัด</small></strong><p>เลยวันนัดแล้วยังไม่มา</p></div>
+        <div><span>ค่าบริการรวม</span><strong>{baht(s!.amount)}<small>บาท</small></strong><p>ค่าหัตถการทุกครั้งที่มารับบริการ</p></div>
       </div>
       <section className="surface padded"><div className="section-head"><h3>แยกตามห้องบริการ</h3></div>
-        <Table headers={['ห้องบริการ', 'นัดทั้งหมด', 'จำนวนคน', 'มาตามนัด', 'รอตรวจ', 'ไม่มาตามนัด']}>
-          {report.rooms.map(r => <tr key={r.code}><td>{r.name}</td><td>{r.appointments}</td><td>{r.people}</td><td>{r.attended}</td><td>{r.pending}</td><td>{r.missed}</td></tr>)}
+        <Table headers={['ห้องบริการ', 'นัดทั้งหมด', 'จำนวนคน', 'มาตามนัด', 'รอตรวจ', 'ไม่มาตามนัด', 'ค่าบริการ (บาท)']}>
+          {report.rooms.map(r => <tr key={r.code}><td>{r.name}</td><td>{r.appointments}</td><td>{r.people}</td><td>{r.attended}</td><td>{r.pending}</td><td>{r.missed}</td><td className="num">{baht(r.amount)}</td></tr>)}
+        </Table></section>
+      <section className="surface padded"><div className="section-head"><h3>แยกตามหัตถการ</h3><p className="muted">รายการที่เรียกเก็บใน HOSxP (ไม่รวมยา)</p></div>
+        <Table headers={['หัตถการ', 'จำนวนครั้งที่มารับบริการ', 'จำนวน', 'ค่าบริการ (บาท)']} empty={!report.procedures.length}>
+          {report.procedures.map(p => <tr key={p.name}><td>{p.name}</td><td>{p.visits.toLocaleString()}</td><td>{p.qty.toLocaleString()}</td><td className="num">{baht(p.amount)}</td></tr>)}
         </Table></section>
       <section className="surface padded"><div className="section-head"><h3>รายการนัด</h3><p className="muted">{thaiDate(report ? from : '')} – {thaiDate(to)}</p></div>
-        <Table headers={['บุคลากร / กลุ่มงาน', 'วัน–เวลานัด', 'ห้องบริการ / ผู้ให้บริการ', 'จุดติดต่อ', 'สถานะ']} empty={!report.rows.length}>
+        <Table headers={['บุคลากร / กลุ่มงาน', 'วัน–เวลานัด', 'ห้องบริการ / ผู้ให้บริการ', 'จุดติดต่อ', 'สถานะ', 'ICD-10 / หัตถการ', 'ค่าบริการ (บาท)']} empty={!report.rows.length}>
           {report.rows.map(a => <tr key={a.oapp_id}><td>{a.display_name}<small>{a.work_group}</small></td>
             <td>{thaiDate(a.appointment_date)}<small>{a.appointment_time ? `${a.appointment_time.slice(0, 5)} น.` : 'ไม่ระบุเวลา'} · ปีงบประมาณ {a.fiscal_year}</small></td>
             <td>{a.room_name}<small>{a.doctor_name || 'ไม่ระบุผู้ให้บริการ'}</small></td><td>{a.location || '—'}</td>
-            <td><span className={`badge status-${a.status.toLowerCase()}`}>{STATUS[a.status]}</span></td></tr>)}
+            <td><span className={`badge status-${a.status.toLowerCase()}`}>{STATUS[a.status]}</span></td>
+            <td>{a.icd10.length || a.procedures.length ? <>{a.icd10.map(c => <small key={c.code} title={c.name}>{c.code}{c.name ? ` ${c.name}` : ''}</small>)}
+              {a.procedures.map(p => <small key={p.name}>{p.name} ×{p.qty} · {baht(p.amount)}</small>)}</> : '—'}</td>
+            <td className="num">{a.amount == null ? '—' : <strong>{baht(a.amount)}</strong>}</td></tr>)}
         </Table></section>
     </>}</>;
 }
