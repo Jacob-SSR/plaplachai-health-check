@@ -96,3 +96,24 @@ test('cancellation notice says the appointment is cancelled, asks nothing to be 
   const flex = JSON.stringify(noticeFlex({ ...notice, kind: 'CANCELLED' }));
   assert.ok(flex.includes('#B91C1C') && !flex.includes('สิ่งที่ต้องนำมา'));
 });
+
+test('flex header puts the hospital photo behind a fade from the notice colour, only with a photo URL', async () => {
+  const n: Notice = { kind: 'NEW', name: 'ทดสอบ', date: '2027-01-29', time: '09:00:00', service: 'ทันตกรรม', location: 'ห้องบัตร' };
+  const card = noticeFlex(n, 'https://example.test/hospital-logo.png', 'https://example.test/hospital-header.jpg') as { contents: { header: { contents: Record<string, unknown>[] } } };
+  const [photo, fade, content] = card.contents.header.contents;
+  assert.deepEqual([photo.type, photo.url, photo.aspectMode], ['image', 'https://example.test/hospital-header.jpg', 'cover']);
+  assert.deepEqual(fade.background, { type: 'linearGradient', angle: '90deg', startColor: '#0D5B44', centerColor: '#0D5B44CC', centerPosition: '50%', endColor: '#0D5B4400' });
+  for (const layer of [fade, content]) assert.equal(layer.position, 'absolute');
+  assert.ok(JSON.stringify(content).includes('hospital-logo.png'));
+  const red = noticeFlex({ ...n, kind: 'CANCELLED' }, undefined, 'https://example.test/hospital-header.jpg') as typeof card;
+  assert.equal((red.contents.header.contents[1].background as { startColor: string }).startColor, '#B91C1C');
+  assert.ok(!JSON.stringify(noticeFlex(n, 'https://example.test/hospital-logo.png')).includes('hospital-header.jpg'), 'no photo URL: plain colour header');
+  const { publicHeaderUrl } = await import('../src/providers/moph-alert');
+  const saved = { ...process.env };
+  try {
+    Object.assign(process.env, { APP_ORIGIN: 'https://hc.example.test/', PUBLIC_LOGO_URL: '', PUBLIC_HEADER_URL: '' });
+    assert.equal(publicHeaderUrl(), 'https://hc.example.test/hospital-header.jpg');
+    Object.assign(process.env, { APP_ORIGIN: 'http://192.168.1.5:5600' });
+    assert.equal(publicHeaderUrl(), undefined, 'LINE cannot load a LAN or http address');
+  } finally { process.env = saved; }
+});

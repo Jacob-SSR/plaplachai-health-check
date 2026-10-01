@@ -115,3 +115,8 @@ section[aria-label="ปฏิทินตรวจสุขภาพ"] .service-
   .agenda-room{font-size:13px;padding:4px 10px}.dialog{padding:18px}.dialog-head h2{font-size:22px}.text-size>span{width:100%}}
 @media print{.text-size,.view-switch,.month-step,.back-today{display:none!important}}
 .dialog .badge{font-size:15px;padding:5px 12px}
+
+/* Notice preview header: same photo and fade as the LINE card (noticeFlex photoHeader). */
+.notice-card-head{--head:#0d5b44;min-height:150px;background:linear-gradient(90deg,var(--head) 0%,color-mix(in srgb,var(--head) 80%,transparent) 50%,transparent 100%),url(/hospital-header.jpg) center/cover}
+.notice-card.kind-reminder .notice-card-head{--head:#b45309}.notice-card.kind-changed .notice-card-head{--head:#1d4ed8}.notice-card.kind-cancelled .notice-card-head{--head:#b91c1c}
+.notice-card-head>div{max-width:62%}

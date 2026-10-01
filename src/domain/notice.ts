@@ -113,22 +113,35 @@ export function plainMessage(text: string, title = 'แจ้งเตือน�
 }
 
 export const NOTICE_COLORS: Record<NoticeKind, string> = { NEW: '#0D5B44', MANUAL: '#0D5B44', REMINDER: '#B45309', CHANGED: '#1D4ED8', CANCELLED: '#B91C1C' };
+// Header with the hospital photo: the photo sets the height (2:1), a gradient box fades from the notice
+// colour on the left (under the logo and title) to clear on the right, and the content sits on top.
+// Flex boxes cannot take a background image, so the layers are stacked with absolute positioning.
+const FILL = { position: 'absolute', offsetTop: '0px', offsetBottom: '0px', offsetStart: '0px', offsetEnd: '0px' };
+function photoHeader(color: string, photoUrl: string, contents: object[]) {
+  return { type: 'box', layout: 'vertical', paddingAll: '0px', contents: [
+    { type: 'image', url: photoUrl, size: 'full', aspectMode: 'cover', aspectRatio: '2:1' },
+    { type: 'box', layout: 'vertical', ...FILL, contents: [],
+      background: { type: 'linearGradient', angle: '90deg', startColor: color, centerColor: `${color}CC`, centerPosition: '50%', endColor: `${color}00` } },
+    { type: 'box', layout: 'horizontal', spacing: 'lg', paddingAll: '18px', alignItems: 'center', ...FILL, contents }] };
+}
 // Our own LINE Flex bubble (designed per LINE Developers Flex Message spec).
 // logoUrl must be public HTTPS; without it the header shows text only.
-export function noticeFlex(n: Notice, logoUrl?: string) {
+export function noticeFlex(n: Notice, logoUrl?: string, photoUrl?: string) {
   const color = NOTICE_COLORS[n.kind];
   const row = ([icon, label, value]: [string, string, string]) => ({ type: 'box', layout: 'horizontal', spacing: 'md', contents: [
     { type: 'text', text: `${icon} ${label}`, size: 'sm', color: '#6B7280', flex: 3, wrap: true },
     { type: 'text', text: value, size: 'sm', color: '#111827', weight: 'bold', wrap: true, flex: 6 }] });
+  const headerContents = [
+        ...(logoUrl ? [{ type: 'box', layout: 'vertical', width: '52px', height: '52px', cornerRadius: '26px', backgroundColor: '#FFFFFF', paddingAll: '4px', flex: 0,
+          contents: [{ type: 'image', url: logoUrl, size: 'full', aspectMode: 'fit', aspectRatio: '1:1' }] }] : []),
+        // Over the photo the title keeps to the solid part of the fade, so white text stays readable.
+        { type: 'box', layout: 'vertical', justifyContent: 'center', ...(photoUrl ? { maxWidth: '58%' } : {}), contents: [
+          { type: 'text', text: HOSPITAL_NAME, color: '#FFFFFFCC', size: 'xs' },
+          { type: 'text', text: noticeTitle(n), color: '#FFFFFF', weight: 'bold', size: 'lg', wrap: true }] }];
   return {
     type: 'flex', altText: `${noticeTitle(n)} · ${thaiLongDate(n.date)}`,
     contents: { type: 'bubble', size: 'mega',
-      header: { type: 'box', layout: 'horizontal', spacing: 'lg', backgroundColor: color, paddingAll: '18px', contents: [
-        ...(logoUrl ? [{ type: 'box', layout: 'vertical', width: '52px', height: '52px', cornerRadius: '26px', backgroundColor: '#FFFFFF', paddingAll: '4px', flex: 0,
-          contents: [{ type: 'image', url: logoUrl, size: 'full', aspectMode: 'fit', aspectRatio: '1:1' }] }] : []),
-        { type: 'box', layout: 'vertical', justifyContent: 'center', contents: [
-          { type: 'text', text: HOSPITAL_NAME, color: '#FFFFFFCC', size: 'xs' },
-          { type: 'text', text: noticeTitle(n), color: '#FFFFFF', weight: 'bold', size: 'lg', wrap: true }] }] },
+      header: photoUrl ? photoHeader(color, photoUrl, headerContents) : { type: 'box', layout: 'horizontal', spacing: 'lg', backgroundColor: color, paddingAll: '18px', contents: headerContents },
       body: { type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '18px', contents: [
         { type: 'box', layout: 'vertical', backgroundColor: '#EEF4F1', cornerRadius: '10px', paddingAll: '12px', contents: [
           { type: 'text', text: `คุณ${n.name}`, weight: 'bold', size: 'md', align: 'center', wrap: true, color: '#0F3D2E' }] },
