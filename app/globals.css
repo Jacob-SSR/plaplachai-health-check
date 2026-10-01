@@ -16,16 +16,7 @@
 .detail-list div{border-bottom:1px solid var(--line);padding-bottom:8px}.detail-list dt{font-size:12px;color:var(--muted,#667)}.detail-list dd{margin:2px 0 0;font-weight:600}
 .link-button{background:none;border:0;padding:0;min-height:0;color:inherit;font-weight:600;text-decoration:underline;cursor:pointer}
 .clickable-row{cursor:pointer}.clickable-row:hover td{background:#f4f8f3}
-.cal-group{margin-top:6px}
-.cal-group-name{font-size:10px;font-weight:700;color:var(--forest-dark,#18584a);line-height:1.4;border-bottom:1px solid var(--line);padding-bottom:2px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cal-group ul{list-style:none;margin:0;padding:0}
-.cal-person{display:flex;align-items:center;gap:5px;width:100%;background:none;border:0;border-radius:4px;padding:2px 3px;min-height:0;font-size:11px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
-.cal-person:hover,.cal-person:focus-visible{background:#eef4ef}
-.cal-dot{flex:0 0 9px;height:9px;border-radius:50%;display:inline-block;background:#9ab}
-.cal-dot.service-dental{background:#9b4805}.cal-dot.service-thai{background:#15567f}.cal-dot.service-physical{background:#376526}.cal-dot.service-blood{background:#763993}
-.cal-more{background:none;border:0;padding:2px 3px;min-height:0;font-size:11px;text-decoration:underline;cursor:pointer;margin-top:3px}
 .service-legend span::before{content:'';display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:currentColor;vertical-align:middle}
-.cal-name{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 section[aria-label="ปฏิทินตรวจสุขภาพ"] .service-legend{padding:0 20px}
 .badge.service-dental{background:#fff0df;color:#9b4805}.badge.service-thai{background:#e1effa;color:#15567f}.badge.service-physical{background:#e4f2dd;color:#376526}.badge.service-blood{background:#f1e4f8;color:#763993}
 .notice-preview{display:grid;grid-template-columns:minmax(260px,340px) 1fr;gap:24px;align-items:start;margin-top:14px}
@@ -63,3 +54,62 @@ small.lab-tests{display:block;color:#763993}
 .notice-card.kind-cancelled .notice-card-head{background:#b91c1c}
 .metrics.five{grid-template-columns:repeat(5,1fr)}td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}td small{display:block}
 @media(max-width:780px){.metrics.five{grid-template-columns:repeat(2,1fr)}.metrics.five>div:last-child{grid-column:1/-1}}
+
+/* Public calendar: large, high-contrast and readable for older staff. */
+.public-content{font-size:16px}
+.text-size{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.text-size>span{font-size:14px;color:var(--muted);margin-right:4px}
+.text-size button,.view-switch button{min-height:48px;min-width:48px;font-weight:700}
+.text-size button[aria-pressed=true],.view-switch button[aria-pressed=true]{background:var(--forest);border-color:var(--forest);color:#fff}
+.text-size-1 .public-content>:not(.dialog-backdrop){zoom:1.15}.text-size-2 .public-content>:not(.dialog-backdrop){zoom:1.3}
+.text-size-1 .dialog{zoom:1.15}.text-size-2 .dialog{zoom:1.3}
+.view-switch{display:flex;gap:6px;margin-left:auto}.view-switch button{font-size:16px;padding:8px 18px}
+.public-content .filters select{min-height:48px;font-size:16px}.public-content .filters label{font-size:15px;font-weight:600}
+section[aria-label="ปฏิทินตรวจสุขภาพ"] .service-legend span{font-size:15px;padding:8px 16px}
+.public-content .month-nav{gap:16px;padding:14px 20px;justify-content:space-between}
+.month-step{min-height:50px;font-size:16px;font-weight:700;padding:8px 18px}
+.month-title{text-align:center}.month-title h2{font-size:30px!important}.month-title span{display:block;font-size:15px}
+.back-today{display:flex;justify-content:center;padding:0 0 14px}.back-today button{min-height:44px;font-size:16px;font-weight:600}
+.public-content .calendar{grid-template-columns:repeat(7,minmax(128px,1fr));min-width:900px}
+.public-content .weekday{font-size:17px;font-weight:700;color:var(--ink);padding:12px 6px;border-top:1px solid var(--line)}
+.public-content .weekday.weekend{color:#9f1d12;background:#fbf1ef}
+.public-content .day{min-height:150px;padding:8px;display:flex;flex-direction:column;gap:5px;background:#fff}
+.public-content .day.weekend{background:#fcf8f7}.public-content .day.blank{background:#f4f6f2}
+.public-content .day.past .day-number>span{color:#8a9a92}
+.public-content .day.is-today{background:#eef7ef;box-shadow:inset 0 0 0 3px var(--forest)}
+.public-content .selected-day{box-shadow:inset 0 0 0 3px #c99744}
+.public-content .day-number{display:flex;align-items:center;justify-content:flex-start;gap:8px;width:100%;padding:2px 4px;min-height:38px;border-radius:8px;font-size:21px;font-weight:700;color:var(--ink)}
+.day-number>span{display:inline-grid;place-items:center;min-width:36px;height:36px;border-radius:50%}
+.is-today .day-number>span{background:var(--forest);color:#fff}
+.day-number em{font-style:normal;font-size:14px;color:var(--forest)}
+.day-number small{margin-left:auto;font-size:13px;font-weight:700;color:var(--ink);background:var(--mint);border-radius:12px;padding:1px 9px}
+.cal-chip{display:flex;align-items:flex-start;justify-content:flex-start;gap:6px;width:100%;min-height:34px;padding:5px 8px;border:0;border-left:5px solid currentColor;border-radius:7px;font-size:15px;font-weight:600;line-height:1.35;text-align:left;white-space:normal}
+.cal-chip b{font-size:13px;line-height:1.55;font-variant-numeric:tabular-nums;opacity:.85}.cal-chip span{min-width:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+.cal-chip:hover{filter:brightness(.96)}
+.cal-more{background:none;border:0;padding:4px;min-height:32px;font-size:15px;font-weight:700;color:var(--forest);text-decoration:underline;justify-content:flex-start;cursor:pointer}
+.agenda{padding:0 20px 20px}
+.empty-note{font-size:18px;text-align:center;color:var(--muted);padding:40px 0}
+.agenda-day{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:16px;background:#fff}
+.agenda-day h3{display:flex;align-items:center;gap:10px;background:var(--mint);padding:12px 18px;font-size:21px}
+.agenda-day h3 em{font-style:normal;font-size:15px;background:#fff;color:var(--forest);border-radius:12px;padding:0 10px}
+.agenda-day h3 small{margin-left:auto;font-size:16px;font-weight:600;color:inherit}
+.agenda-day.is-today h3{background:var(--forest);color:#fff}.agenda-day.past{opacity:.75}
+.agenda-day ul{list-style:none;margin:0;padding:0}
+.agenda-day li button{display:grid;grid-template-columns:120px 1fr auto;align-items:center;gap:16px;width:100%;min-height:68px;padding:12px 18px;border:0;border-top:1px solid var(--line);border-radius:0;background:#fff;text-align:left;white-space:normal}
+.agenda-day li:first-child button{border-top:0}.agenda-day li button:hover{background:#f6faf5}
+.agenda-time{font-size:19px;font-variant-numeric:tabular-nums;color:var(--forest)}
+.agenda-name{font-size:19px;font-weight:700}.agenda-name small{font-size:15px;font-weight:400;margin-top:2px}
+.agenda-room{font-size:15px;font-weight:700;border-radius:20px;padding:6px 14px;white-space:nowrap}
+.public-content table{font-size:15px}.public-content th{font-size:13px}.public-content .badge{font-size:13px}
+.dialog-backdrop{position:fixed;inset:0;z-index:50;background:rgba(10,32,26,.5);display:grid;place-items:center;padding:16px}
+.dialog{background:#fff;border-radius:14px;width:100%;max-width:660px;max-height:90vh;overflow:auto;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.25);font-size:17px}
+.dialog-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:18px}.dialog-head h2{font-size:27px;margin-bottom:6px}
+.dialog-close{min-height:48px;font-size:16px;font-weight:700}
+.dialog .detail-list dt{font-size:14px}.dialog .detail-list dd{font-size:18px}.dialog .detail-list .big dd{font-size:21px;color:var(--forest)}
+.dialog-actions{display:flex;justify-content:flex-end;margin-top:18px}.dialog-actions button{min-height:48px;font-size:16px}
+@media(max-width:780px){.view-switch{margin-left:0;width:100%}.view-switch button{flex:1}
+  .public-content .month-nav{padding:12px 10px;gap:6px}.month-step{padding:8px 10px;font-size:14px}.month-step span{display:none}.month-title h2{font-size:23px!important}
+  .agenda{padding:0 10px 14px}.agenda-day h3{font-size:18px;padding:10px 14px;flex-wrap:wrap}
+  .agenda-day li button{grid-template-columns:1fr auto;gap:4px 10px;padding:12px 14px}.agenda-time{grid-column:1/-1;font-size:17px}
+  .agenda-room{font-size:13px;padding:4px 10px}.dialog{padding:18px}.dialog-head h2{font-size:22px}.text-size>span{width:100%}}
+@media print{.text-size,.view-switch,.month-step,.back-today{display:none!important}}
+.dialog .badge{font-size:15px;padding:5px 12px}
