@@ -85,6 +85,8 @@ section[aria-label="ปฏิทินตรวจสุขภาพ"] .service-
 .cal-chip{display:flex;align-items:flex-start;justify-content:flex-start;gap:6px;width:100%;min-height:34px;padding:5px 8px;border:0;border-left:5px solid currentColor;border-radius:7px;font-size:15px;font-weight:600;line-height:1.35;text-align:left;white-space:normal}
 .cal-chip b{font-size:13px;line-height:1.55;font-variant-numeric:tabular-nums;opacity:.85}.cal-chip span{min-width:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
 .cal-chip:hover{filter:brightness(.96)}
+.cal-group{display:flex;flex-direction:column;gap:4px}.cal-group+.cal-group{margin-top:4px}
+.cal-group-name{font-size:14px;font-weight:700;color:var(--forest-dark);border-bottom:2px solid var(--line);padding:2px 2px 2px;line-height:1.4;overflow-wrap:anywhere}
 .cal-more{background:none;border:0;padding:4px;min-height:32px;font-size:15px;font-weight:700;color:var(--forest);text-decoration:underline;justify-content:flex-start;cursor:pointer}
 .agenda{padding:0 20px 20px}
 .empty-note{font-size:18px;text-align:center;color:var(--muted);padding:40px 0}
@@ -97,7 +99,7 @@ section[aria-label="ปฏิทินตรวจสุขภาพ"] .service-
 .agenda-day li button{display:grid;grid-template-columns:120px 1fr auto;align-items:center;gap:16px;width:100%;min-height:68px;padding:12px 18px;border:0;border-top:1px solid var(--line);border-radius:0;background:#fff;text-align:left;white-space:normal}
 .agenda-day li:first-child button{border-top:0}.agenda-day li button:hover{background:#f6faf5}
 .agenda-time{font-size:19px;font-variant-numeric:tabular-nums;color:var(--forest)}
-.agenda-name{font-size:19px;font-weight:700}.agenda-name small{font-size:15px;font-weight:400;margin-top:2px}
+.agenda-name{font-size:19px;font-weight:700}.agenda-name small{font-size:16px;font-weight:600;color:var(--forest-dark);margin-top:2px}
 .agenda-room{font-size:15px;font-weight:700;border-radius:20px;padding:6px 14px;white-space:nowrap}
 .public-content table{font-size:15px}.public-content th{font-size:13px}.public-content .badge{font-size:13px}
 .dialog-backdrop{position:fixed;inset:0;z-index:50;background:rgba(10,32,26,.5);display:grid;place-items:center;padding:16px}

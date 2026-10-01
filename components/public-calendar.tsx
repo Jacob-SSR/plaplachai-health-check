@@ -55,7 +55,10 @@ export function PublicCalendar({account}:{account:Account}){
   const time=(a:Appt)=>a.time?a.time.slice(0,5):'';
   const sorted=(list:Appt[])=>[...list].sort((a,b)=>(a.time||'99').localeCompare(b.time||'99')||a.name.localeCompare(b.name,'th'));
   const byDay=new Map<string,Appt[]>();for(const a of data.appointments)byDay.set(a.day,[...(byDay.get(a.day)??[]),a]);
-  const MAX_IN_DAY=4;
+  const shortGroup=(g:string)=>g.replace(/^กลุ่มงาน/,'').trim()||'ไม่ระบุกลุ่มงาน';
+  // Within a day, people are listed under their work group (กลุ่มงาน), groups in Thai order.
+  const byGroup=(list:Appt[])=>{const m=new Map<string,Appt[]>();for(const a of list){const k=shortGroup(a.work_group);m.set(k,[...(m.get(k)??[]),a]);}return [...m.entries()].sort(([a],[b])=>a.localeCompare(b,'th'));};
+  const MAX_IN_DAY=5;
   const open=(a:Appt)=>{setSelected(a.day);setDetail(a);setNotify(undefined);};
   const SENT:Record<string,string>={ACCEPTED:'ส่งแล้ว · MOPH รับคำขอ',BLOCKED:'ยังส่งไม่ได้',FAILED:'ส่งไม่ผ่าน',UNKNOWN:'ยังยืนยันผลไม่ได้ ตรวจ LINE ของผู้รับก่อนส่งซ้ำ',CANCELLED:'ยกเลิก'};
   async function sendNotice(a:Appt){
@@ -97,7 +100,8 @@ export function PublicCalendar({account}:{account:Account}){
             return <div key={day} className={`day${selected===day?' selected-day':''}${day===today?' is-today':''}${weekend?' weekend':''}${day<today?' past':''}`}>
               <button className="day-number" aria-label={`ดูนัด ${longDay(day)}${people.length?` ${people.length} คน`:''}`} onClick={()=>{setSelected(day);setDetail(undefined);}}>
                 <span>{i+1}</span>{day===today&&<em>วันนี้</em>}{people.length>0&&<small>{people.length} คน</small>}</button>
-              {people.slice(0,MAX_IN_DAY).map(chip)}
+              {(()=>{let shown=0;return byGroup(people).map(([group,list])=>{const visible=list.slice(0,Math.max(0,MAX_IN_DAY-shown));shown+=visible.length;
+                return visible.length?<div key={group} className="cal-group"><div className="cal-group-name" title={group}>{group}</div>{visible.map(chip)}</div>:null;});})()}
               {people.length>MAX_IN_DAY&&<button className="cal-more" onClick={()=>{setSelected(day);setDetail(undefined);document.getElementById('day-list')?.scrollIntoView({behavior:'smooth'});}}>+ อีก {people.length-MAX_IN_DAY} คน</button>}
             </div>;})}</div></div>
         :<div className="agenda">{!busy&&!error&&!agendaDays.length&&<p className="empty-note">ไม่มีนัดหมายในเดือนนี้</p>}
