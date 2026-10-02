@@ -18,7 +18,7 @@ export function HosxpPersonnel({employees,api,reload,canManage,csrf=''}:{employe
     try{
       const r=await fetch('/api/v1/hr-personnel',{method:'POST',headers:{'Content-Type':'application/octet-stream','x-csrf-token':csrf},body:file});
       const b=await r.json();if(!r.ok)throw Error(b.message);
-      setImported(`นำเข้าแล้ว ${b.total} คน · ${b.workGroups} กลุ่มงาน`);reload();
+      setImported(`นำเข้าแล้ว ${b.total} คน · ${b.workGroups} กลุ่มงาน · ใช้ CID จากไฟล์กับบุคลากร ${b.matched ?? 0} คน (เปลี่ยน ${b.changed ?? 0} คน)`);reload();
     }catch(err){setError(err instanceof Error?err.message:'นำเข้าไม่สำเร็จ');}
   }
   return <><div className="section-head"><div><h2>บุคลากรจาก HOSxP</h2>
@@ -33,7 +33,7 @@ export function HosxpPersonnel({employees,api,reload,canManage,csrf=''}:{employe
       <Table headers={['รหัส doctor','ชื่อบุคลากร','กลุ่มงาน / หน่วยงาน','ตำแหน่ง','สถานะ','CID สำหรับจับคู่นัด','แจ้งเตือน']} empty={!people.length}>
         {people.map(e=><tr key={e.id}><td>{s(e.hosxp_doctor_code)}</td><td>{s(e.hosxp_doctor_name)}</td>
           <td>{s(e.hr_work_group)||'—'}<small>{s(e.hr_department)}</small></td><td>{s(e.hr_position)||'—'}</td>
-          <td>{e.active?'ยังปฏิบัติงาน':'ไม่ได้ปฏิบัติงาน'}</td><td>{e.has_cid?'พร้อมจับคู่':'ต้องตรวจ CID ใน HOSxP'}</td>
+          <td>{e.active?'ยังปฏิบัติงาน':'ไม่ได้ปฏิบัติงาน'}</td><td>{e.has_cid?(e.cid_source==='HR'?'CID จากทะเบียนบุคลากร':'CID จาก HOSxP'):'ยังไม่มี CID (นำเข้าไฟล์ทะเบียนบุคลากร)'}</td>
           <td>{canManage?<button disabled={saving!==null||!e.has_cid||!e.active} onClick={()=>void toggle(e)}>{e.notification_enabled?'เปิดรับแจ้งเตือน':'ปิดรับแจ้งเตือน'}</button>:e.notification_enabled?'เปิด':'ปิด'}</td></tr>)}
       </Table>
       {!source.length&&<p className="helper">ยังไม่ได้รับรายชื่อจาก HOSxP ให้ตรวจการเชื่อมต่อและเริ่ม worker เพื่อดึงข้อมูล</p>}

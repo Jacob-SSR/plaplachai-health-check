@@ -50,7 +50,7 @@ const employeeSchema=z.object({employeeCode:code,prefix:z.string().trim().max(30
 export async function employees(actor:Actor) {
   const scope=scopeSql(actor,'a.department_id');
   return rows(`SELECT e.id,e.employee_code,e.prefix,e.first_name,e.last_name,e.active,e.version,e.notification_enabled,e.hosxp_doctor_code,e.hosxp_doctor_name,
-   (e.cid_ciphertext IS NOT NULL) has_cid,a.department_id,a.position_id,a.level_id,a.employment_type_id,a.valid_from,d.name department_name,p.name position_name,parent.name group_name
+   (e.cid_ciphertext IS NOT NULL) has_cid,e.cid_source,a.department_id,a.position_id,a.level_id,a.employment_type_id,a.valid_from,d.name department_name,p.name position_name,parent.name group_name
    FROM employees e LEFT JOIN employee_assignments a ON a.employee_id=e.id AND a.valid_to IS NULL
    LEFT JOIN departments d ON d.id=a.department_id LEFT JOIN departments parent ON parent.id=d.parent_id LEFT JOIN positions p ON p.id=a.position_id WHERE ${scope.sql} ORDER BY e.first_name,e.last_name`,scope.params);
 }
@@ -163,7 +163,7 @@ export async function members(yearId:number,actor:Actor) {
    FROM fiscal_year_members m JOIN employees e ON e.id=m.employee_id WHERE m.fiscal_year_id=? AND ${scope.sql} ORDER BY m.display_name`,[yearId,...scope.params]);
 }
 export async function saveUser(body:unknown,actor:Actor) {
-  const input=z.object({username:z.string().regex(/^[A-Za-z0-9_.-]{3,100}$/),displayName:text(200),password:z.string().min(12).refine(p=>Buffer.byteLength(p)<=72,'รหัสผ่านไม่เกิน 72 bytes'),role:z.enum(['ADMIN','STAFF','VIEWER']),departmentIds:z.array(id).default([])}).parse(body);
+  const input=z.object({username:z.string().regex(/^[A-Za-z0-9_.-]{3,100}$/),displayName:text(200),password:z.string().min(6,'รหัสผ่านอย่างน้อย 6 อักขระ').refine(p=>Buffer.byteLength(p)<=72,'รหัสผ่านไม่เกิน 72 bytes'),role:z.enum(['ADMIN','STAFF','VIEWER']),departmentIds:z.array(id).default([])}).parse(body);
   const hash=await bcrypt.hash(input.password,12);
   return transaction(async db=>{
     const r=await execute('INSERT INTO users(username,display_name,password_hash) VALUES(?,?,?)',[input.username,input.displayName,hash],db);

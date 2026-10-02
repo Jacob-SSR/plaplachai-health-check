@@ -55,3 +55,12 @@ test('provider is off by default and handles timeout without leaking response',a
  const r=await p.send('synthetic','test');assert.equal(r.outcome,'UNKNOWN');assert.equal(calls,1);assert.ok(!JSON.stringify(r).includes('SECRET'));
  }finally{for(const [k,v] of [['MOPH_LIVE_ENABLED',env.enabled],['MOPH_CLIENT_KEY',env.client],['MOPH_SECRET_KEY',env.secret]]){if(v===undefined)delete process.env[k!];else process.env[k!]=v;}}
 });
+
+test('report pager shows first, last and the pages around the current one', async () => {
+  const { pageList } = await import('../components/report-kit');
+  assert.deepEqual(pageList(1, 1), [1]);
+  assert.deepEqual(pageList(1, 4), [1, 2, '…', 4]);
+  assert.deepEqual(pageList(5, 9), [1, '…', 4, 5, 6, '…', 9]);
+  assert.deepEqual(pageList(2, 3), [1, 2, 3]);
+  assert.deepEqual(pageList(9, 9), [1, '…', 8, 9]);
+});

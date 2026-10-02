@@ -15,7 +15,7 @@ Copy-Item .env.example .env
 npm ci
 ```
 
-ตั้งค่า `.env` ก่อนรัน: DB_PASSWORD กับ MYSQL_ROOT_PASSWORD ต้องเป็นคนละรหัสสุ่ม, ADMIN_PASSWORD อย่างน้อย 12 อักขระ (ไม่เกิน 72 bytes). ตั้ง DATA_ENCRYPTION_KEY เป็น base64 ของ random 32 bytes และ CID_HMAC_KEY เป็น secret แยกอีกตัว ความยาวอย่างน้อย 32 ตัว เก็บกุญแจในที่สำรองที่ปลอดภัย เพราะจำเป็นต่อการกู้ข้อมูลผู้รับ
+ตั้งค่า `.env` ก่อนรัน: DB_PASSWORD กับ MYSQL_ROOT_PASSWORD ต้องเป็นคนละรหัสสุ่ม, ADMIN_PASSWORD อย่างน้อย 6 อักขระ (ไม่เกิน 72 bytes). ตั้ง DATA_ENCRYPTION_KEY เป็น base64 ของ random 32 bytes และ CID_HMAC_KEY เป็น secret แยกอีกตัว ความยาวอย่างน้อย 32 ตัว เก็บกุญแจในที่สำรองที่ปลอดภัย เพราะจำเป็นต่อการกู้ข้อมูลผู้รับ
 
 ```powershell
 # รันสองครั้งเพื่อสร้างกุญแจคนละตัว แล้วบันทึกใน .env/secret store

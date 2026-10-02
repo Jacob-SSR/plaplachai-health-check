@@ -10,10 +10,12 @@ export function publicLogoUrl() {
   const explicit=process.env.PUBLIC_LOGO_URL?.trim();if(explicit?.startsWith('https://'))return explicit;
   const origin=process.env.APP_ORIGIN?.trim();return origin?.startsWith('https://')?`${origin.replace(/\/$/,'')}/hospital-logo.png`:undefined;
 }
-// Hospital photo for the card header (public/hospital-header.jpg), served from the same place as the logo.
+// Hospital photo for the card header (public/hospital-header.jpg). LINE must fetch it over public https, which a
+// web on the hospital LAN (http) cannot give, so the default is the same file from this public GitHub repository.
+export const DEFAULT_HEADER_URL='https://raw.githubusercontent.com/Jacob-SSR/plaplachai-health-check/main/public/hospital-header.jpg';
 export function publicHeaderUrl() {
   const explicit=process.env.PUBLIC_HEADER_URL?.trim();if(explicit?.startsWith('https://'))return explicit;
-  const logo=publicLogoUrl();return logo?.endsWith('/hospital-logo.png')?logo.replace(/hospital-logo\.png$/,'hospital-header.jpg'):undefined;
+  const logo=publicLogoUrl();return logo?.endsWith('/hospital-logo.png')?logo.replace(/hospital-logo\.png$/,'hospital-header.jpg'):DEFAULT_HEADER_URL;
 }
 export function mophMode(){const m=process.env.MOPH_API_MODE?.trim();return m==='template'||m==='freeform'?m:'flex';}
 export function mophRequest(cid:string,message:OutboundMessage,mode:string=mophMode()){

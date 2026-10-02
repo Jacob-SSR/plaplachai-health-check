@@ -120,7 +120,9 @@ test('flex card: photo header fading into the notice colour, date box first, pla
     Object.assign(process.env, { APP_ORIGIN: 'https://hc.example.test/', PUBLIC_LOGO_URL: '', PUBLIC_HEADER_URL: '' });
     assert.equal(publicHeaderUrl(), 'https://hc.example.test/hospital-header.jpg');
     Object.assign(process.env, { APP_ORIGIN: 'http://192.168.1.5:5600' });
-    assert.equal(publicHeaderUrl(), undefined, 'LINE cannot load a LAN or http address');
+    assert.equal(publicHeaderUrl(), 'https://raw.githubusercontent.com/Jacob-SSR/plaplachai-health-check/main/public/hospital-header.jpg', 'LAN http web: the public copy on GitHub');
+    Object.assign(process.env, { PUBLIC_HEADER_URL: 'https://cdn.example.test/front.jpg' });
+    assert.equal(publicHeaderUrl(), 'https://cdn.example.test/front.jpg');
   } finally { process.env = saved; }
 });
 
