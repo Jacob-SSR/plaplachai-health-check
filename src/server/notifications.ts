@@ -67,8 +67,10 @@ export async function dispatchOne(provider:NotificationProvider=new MophAlertPro
     }
     await execute("UPDATE notification_jobs SET status='SENDING',attempt_count=attempt_count+1,lease_until=DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 2 MINUTE) WHERE id=?",[job.id],db);
     await execute("INSERT INTO notification_attempts(job_id,attempt_no,outcome) VALUES(?,?,'STARTED')",[job.id,Number(job.attempt_count)+1],db);
-    return {skipped:false,jobId:String(job.id),attemptNo:Number(job.attempt_count)+1,cid,message:job.hosxp_oapp_id?noticeMessage(noticeFromRow(a,String(job.kind??'NEW'),job.days_before==null?undefined:Number(job.days_before),
-      cancelNotice?{}:await appointmentExtras(String(job.hosxp_oapp_id),String(a.appointment_date).slice(0,10)))):noticeText(noticeFromRow(a))};
+    // show_brand: admin switch for the logo + hospital name row (missing column before migration 011 = shown).
+    const showBrand=settings?.show_brand==null||!!Number(settings.show_brand);
+    return {skipped:false,jobId:String(job.id),attemptNo:Number(job.attempt_count)+1,cid,message:job.hosxp_oapp_id?noticeMessage({...noticeFromRow(a,String(job.kind??'NEW'),job.days_before==null?undefined:Number(job.days_before),
+      cancelNotice?{}:await appointmentExtras(String(job.hosxp_oapp_id),String(a.appointment_date).slice(0,10))),showBrand}):noticeText(noticeFromRow(a))};
   });
   if(!claimed)return false;if(claimed.skipped)return true;
   const delivery=await provider.send(claimed.cid!,claimed.message!);

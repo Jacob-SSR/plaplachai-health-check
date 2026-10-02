@@ -13,7 +13,7 @@ export function NoticeCard({ notice }: { notice: Notice }) {
   const steps = noticePreparation(notice), cancelled = notice.kind === 'CANCELLED';
   return <div className={`notice-card kind-${notice.kind.toLowerCase()}`}>
     <div className="nc-head"><div className="nc-head-text">
-      <span className="nc-org"><img src="/hospital-logo.png" alt="" width={28} height={28}/* eslint-disable-line @next/next/no-img-element */ />{HOSPITAL_NAME}</span>
+      {notice.showBrand !== false && <span className="nc-org"><img src="/hospital-logo.png" alt="" width={28} height={28}/* eslint-disable-line @next/next/no-img-element */ />{HOSPITAL_NAME}</span>}
       <strong>{noticeTitle(notice)}</strong></div></div>
     <div className="nc-body">
       <p className="nc-greet">เรียน คุณ{notice.name}</p>
@@ -28,13 +28,13 @@ export function NoticeCard({ notice }: { notice: Notice }) {
   </div>;
 }
 
-export function NoticePreview() {
+export function NoticePreview({ showBrand = true }: { showBrand?: boolean }) {
   const [kind, setKind] = useState<NoticeKind>('NEW'), [lab, setLab] = useState(false);
   return <section className="surface padded" aria-label="ตัวอย่างข้อความแจ้งเตือน"><div className="section-head"><div>
     <h3>ตัวอย่างข้อความที่บุคลากรได้รับใน LINE หมอพร้อม</h3>
     <p className="helper">การ์ด LINE Flex ที่ออกแบบเอง ส่งผ่าน MOPH Alert · ถ้า MOPH ไม่รับการ์ดนี้ ระบบจะส่งเป็นการ์ดมาตรฐานของ MOPH แทน</p></div></div>
     <div className="subnav">{KINDS.map(([k, label]) => <button key={k} aria-pressed={kind === k} onClick={() => setKind(k)}>{label}</button>)}<button aria-pressed={lab} onClick={() => setLab(v => !v)}>ตัวอย่างนัด LAB</button></div>
-    <div className="notice-preview"><NoticeCard notice={{ ...(lab ? LAB_SAMPLE : SAMPLE), kind }}/>
+    <div className="notice-preview"><NoticeCard notice={{ ...(lab ? LAB_SAMPLE : SAMPLE), kind, showBrand }}/>
       <div className="notice-when"><h4>ส่งเมื่อไหร่</h4><ul>
         <li><strong>ลงนัดครั้งแรก</strong> ส่งทันทีเมื่อ worker พบนัดใหม่ใน HOSxP</li>
         <li><strong>เลื่อนนัด</strong> ส่งทันทีเมื่อวัน เวลา หรือจุดติดต่อเปลี่ยน</li>
