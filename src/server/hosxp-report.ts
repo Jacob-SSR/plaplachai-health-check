@@ -43,13 +43,21 @@ export async function hosxpReport(params: URLSearchParams, actor: Actor) {
       total.visits++; total.qty += p.qty; total.amount = Math.round((total.amount + p.amount) * 100) / 100;
     }
   const procedures = [...byProcedure.values()].sort((a, b) => b.amount - a.amount);
+  // Money per principal diagnosis (first ICD-10 of the visit), each visit counted once.
+  const byIcd10 = new Map<string, { code: string; name: string; visits: number; amount: number }>();
+  for (const charge of new Map(charged.filter(a => a.charge).map(a => [a.visit_vn, a.charge!])).values()) {
+    const main = charge.icd10[0]; if (!main) continue;
+    const total = byIcd10.get(main.code) ?? byIcd10.set(main.code, { ...main, visits: 0, amount: 0 }).get(main.code)!;
+    total.visits++; total.amount = Math.round((total.amount + charge.amount) * 100) / 100;
+  }
+  const icd10 = [...byIcd10.values()].sort((a, b) => b.amount - a.amount || b.visits - a.visits);
   const hr = await hrLookup();
   const rows = charged.map(a => ({ oapp_id: a.oapp_id, display_name: a.display_name,
     work_group: hr(a.personnel_code, a.display_name)?.work_group ?? '', appointment_date: a.appointment_date,
     appointment_time: a.appointment_time, room_name: a.room_name, doctor_name: a.doctor_name, location: a.location,
     fiscal_year: a.fiscal_year, status: a.status,
     amount: a.charge?.amount ?? null, procedures: a.charge?.procedures ?? [], icd10: a.charge?.icd10 ?? [] }));
-  return { from, to, summary: count(charged), rooms, procedures, rows };
+  return { from, to, summary: count(charged), rooms, procedures, icd10, rows };
 }
 
 export async function hosxpReportExcel(params: URLSearchParams, actor: Actor) {
@@ -70,13 +78,16 @@ export async function hosxpReportExcel(params: URLSearchParams, actor: Actor) {
   byProcedure.addRow(['หัตถการ', 'จำนวนครั้งที่มารับบริการ', 'จำนวน', 'ค่าบริการ (บาท)']);
   for (const p of report.procedures) byProcedure.addRow([p.name, p.visits, p.qty, p.amount]);
   byProcedure.addRow(['รวม', '', '', s.amount]);
-  for (const ws of [sheet, summary, byProcedure]) {
+  const byIcd10 = book.addWorksheet('สรุปตาม ICD-10');
+  byIcd10.addRow(['ICD-10', 'ชื่อโรค', 'จำนวนครั้งที่มารับบริการ', 'ค่าบริการ (บาท)']);
+  for (const c of report.icd10) byIcd10.addRow([c.code, c.name, c.visits, c.amount]);
+  for (const ws of [sheet, summary, byProcedure, byIcd10]) {
     ws.views = [{ state: 'frozen', ySplit: 1 }]; ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
     ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF18584A' } };
     ws.columns.forEach(c => c.width = 22);
   }
   sheet.getColumn(11).width = sheet.getColumn(12).width = 45;
   for (const col of [11, 12]) sheet.getColumn(col).alignment = { wrapText: true, vertical: 'top' };
-  for (const [ws, col] of [[sheet, 13], [summary, 7], [byProcedure, 4]] as const) ws.getColumn(col).numFmt = '#,##0.00';
+  for (const [ws, col] of [[sheet, 13], [summary, 7], [byProcedure, 4], [byIcd10, 4]] as const) ws.getColumn(col).numFmt = '#,##0.00';
   return Buffer.from(await book.xlsx.writeBuffer());
 }

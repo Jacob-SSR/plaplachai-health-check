@@ -163,7 +163,7 @@ export async function members(yearId:number,actor:Actor) {
    FROM fiscal_year_members m JOIN employees e ON e.id=m.employee_id WHERE m.fiscal_year_id=? AND ${scope.sql} ORDER BY m.display_name`,[yearId,...scope.params]);
 }
 export async function saveUser(body:unknown,actor:Actor) {
-  const input=z.object({username:z.string().regex(/^[A-Za-z0-9_.-]{3,100}$/),displayName:text(200),password:z.string().min(12).refine(p=>Buffer.byteLength(p)<=72,'รหัสผ่านไม่เกิน 72 bytes'),role:z.enum(['ADMIN','STAFF','VIEWER']),departmentIds:z.array(id).default([])}).parse(body);
+  const input=z.object({username:z.string().regex(/^[A-Za-z0-9_.-]{3,100}$/),displayName:text(200),password:z.string().min(6,'รหัสผ่านอย่างน้อย 6 อักขระ').refine(p=>Buffer.byteLength(p)<=72,'รหัสผ่านไม่เกิน 72 bytes'),role:z.enum(['ADMIN','STAFF','VIEWER']),departmentIds:z.array(id).default([])}).parse(body);
   const hash=await bcrypt.hash(input.password,12);
   return transaction(async db=>{
     const r=await execute('INSERT INTO users(username,display_name,password_hash) VALUES(?,?,?)',[input.username,input.displayName,hash],db);

@@ -123,3 +123,42 @@ section[aria-label="ปฏิทินตรวจสุขภาพ"] .service-
 .nc-rows div{padding:3px 0;border-top:0}
 .nc-prepare{padding:10px;margin-top:10px;border-radius:10px;font-size:12px}.nc-prepare p{margin:0}.nc-prepare strong{display:inline}.nc-prepare p+strong{display:block;margin-top:6px}
 .nc-foot{padding:8px 16px;font-size:11px;list-style:none}
+
+/* Report page: one-tap periods, large KPI cards, bars instead of bare numbers. */
+.rp .section-head h2{font-size:26px}
+.rp-excel{min-height:46px;font-size:15px;font-weight:700;padding:8px 18px}
+.rp-filters{display:flex;flex-direction:column;align-items:stretch;gap:14px;padding:18px 20px}
+.rp-chips{display:flex;flex-wrap:wrap;gap:8px}.rp-chips button{min-height:44px;padding:8px 18px;border-radius:999px;font-size:15px;font-weight:600}
+.rp-chips button[aria-pressed=true]{background:var(--forest);border-color:var(--forest);color:#fff}
+.rp-chips.small{margin-bottom:12px}.rp-chips.small button{min-height:38px;padding:5px 14px;font-size:14px}
+.rp-dates,.rp-fields{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}.rp-dates label,.rp-fields label{min-width:180px;flex:1;font-weight:600}
+.rp-fields input,.rp-fields select,.rp-dates input{min-height:46px;font-size:15px}
+.rp-search{display:flex!important;align-items:center;gap:8px;border:1px solid #cddad2;border-radius:8px;padding:0 12px;background:#fff;flex:2!important}
+.rp-search input{border:0;min-height:44px;padding:0}.rp-search input:focus{outline:none}.rp-search:focus-within{outline:3px solid #c99744;outline-offset:2px}.rp-search svg{color:var(--muted);flex-shrink:0}
+.rp-loading{padding:50px;text-align:center;color:var(--muted);font-size:16px}.rp-dim{opacity:.6;transition:opacity .2s}
+.rp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:4px 0 22px}
+.rp-kpi{position:relative;background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 18px 16px;border-top:5px solid #8aa59a}
+.rp-kpi svg{position:absolute;right:16px;top:16px;color:#8aa59a}
+.rp-kpi span{display:block;font-size:14px;color:var(--muted);font-weight:600}
+.rp-kpi strong{display:block;font-family:var(--font-heading);font-size:34px;line-height:1.35;letter-spacing:-.02em;margin-top:4px;font-variant-numeric:tabular-nums}
+.rp-kpi small{font-size:13px}
+.rp-kpi.ok{border-top-color:#3f8a52}.rp-kpi.ok svg{color:#3f8a52}.rp-kpi.miss{border-top-color:#c0392b}.rp-kpi.miss svg{color:#c0392b}
+.rp-kpi.wait{border-top-color:#2d7bb5}.rp-kpi.wait svg{color:#2d7bb5}
+.rp-kpi.money{border-top-color:var(--forest);background:#eef6f0}.rp-kpi.money svg{color:var(--forest)}.rp-kpi.money strong{color:var(--forest)}
+.rp-meter{height:8px;background:#e6ede8;border-radius:4px;overflow:hidden;margin-top:8px}.rp-meter i{display:block;height:100%;background:#3f8a52;border-radius:4px}
+.rp-section-title{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}.rp-section-title h3{font-size:19px}.rp-section-title p{margin:0;font-size:13px}
+.rp-table{font-size:14px}.rp-table th{font-size:12px}.rp-table td{padding:12px 14px;vertical-align:top}.rp-table th.num,.rp-table td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.rp-table td small{display:block}.rp-table tr.rp-total td{background:#f5f8f5;font-weight:700;border-top:2px solid var(--line)}
+.rp-status{min-width:200px}.rp-stack{display:flex;height:12px;border-radius:6px;overflow:hidden;background:#eef1ee}.rp-stack i{display:block;height:100%}
+.rp-stack .ok{background:#3f8a52}.rp-stack .miss{background:#d9604f}.rp-stack .wait{background:#7fb3dc}.rp-status small{font-size:12px;color:var(--muted);margin-top:4px}
+.rp-two{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}.rp-two>section{margin:0}
+.rp-top ol{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.rp-top-row{display:flex;justify-content:space-between;gap:12px;font-size:14px}.rp-top-row strong{font-variant-numeric:tabular-nums;white-space:nowrap}
+.rp-top-label small{display:inline;color:var(--muted)}.rp-top li>small{font-size:12px}.rp-top .rp-meter{height:7px;margin:5px 0 2px}.rp-top .rp-meter i{background:var(--forest)}
+.rp-top .link-button{margin-top:12px;font-size:14px}
+.rp-empty{color:var(--muted);text-align:center;padding:24px 0;margin:0}
+.rp-more{display:flex;justify-content:space-between;align-items:center;padding-top:12px;font-size:13px}.rp-more button{min-height:42px}
+@media(max-width:900px){.rp-two{grid-template-columns:1fr}}
+.rp-fields label:not(.rp-search){max-width:420px}
+@media(max-width:780px){.rp-kpi.money{grid-column:1/-1}.rp-kpis{grid-template-columns:1fr 1fr}.rp-kpi strong{font-size:26px}.rp-chips button{flex:1}.rp-dates label,.rp-fields label{min-width:100%}}
+@media print{.rp-filters,.rp-chips,.rp-more,.rp-top .link-button,.rp-excel{display:none!important}.rp-kpi{break-inside:avoid}}
