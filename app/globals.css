@@ -115,3 +115,11 @@ section[aria-label="ปฏิทินตรวจสุขภาพ"] .service-
 .nc-prepare ul{margin:4px 0 0;padding-left:18px}
 .nc-foot{margin:0;padding:12px 20px 12px 36px;background:#f7f9f8;border-top:1px solid #eef0f2;color:#6b7280;font-size:12px}
 .nc-prepare ul,.nc-foot{list-style:disc}
+
+/* Compact card (shorter on a phone): 2:1 photo, tighter spacing, one-line bring list and footer. */
+.nc-head{aspect-ratio:2/1}.nc-head-text{padding:0 16px 12px}.nc-head-text strong{font-size:18px}
+.nc-body{padding:16px}.nc-lead{font-size:12px}
+.nc-when{padding:10px;margin:10px 0 8px;border-radius:10px}.nc-tile{flex-basis:48px;border-radius:8px;padding:4px 0}.nc-tile b{font-size:20px}
+.nc-rows div{padding:3px 0;border-top:0}
+.nc-prepare{padding:10px;margin-top:10px;border-radius:10px;font-size:12px}.nc-prepare p{margin:0}.nc-prepare strong{display:inline}.nc-prepare p+strong{display:block;margin-top:6px}
+.nc-foot{padding:8px 16px;font-size:11px;list-style:none}

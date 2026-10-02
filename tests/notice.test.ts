@@ -101,8 +101,8 @@ test('flex card: photo header fading into the notice colour, date box first, pla
   const n: Notice = { kind: 'NEW', name: 'ทดสอบ', date: '2027-01-29', time: '09:00:00', service: 'ทันตกรรม', location: 'ห้องบัตร' };
   const card = noticeFlex(n, 'https://example.test/hospital-logo.png', 'https://example.test/hospital-header.jpg') as { contents: { header: { contents: Record<string, unknown>[] }; body: { contents: Record<string, unknown>[] } } };
   const [photo, fade, content] = card.contents.header.contents;
-  assert.deepEqual([photo.type, photo.url, photo.aspectMode, photo.aspectRatio], ['image', 'https://example.test/hospital-header.jpg', 'cover', '20:13']);
-  assert.deepEqual(fade.background, { type: 'linearGradient', angle: '0deg', startColor: '#0D5B44', centerColor: '#0D5B44CC', centerPosition: '45%', endColor: '#0D5B4400' });
+  assert.deepEqual([photo.type, photo.url, photo.aspectMode, photo.aspectRatio], ['image', 'https://example.test/hospital-header.jpg', 'cover', '2:1']);
+  assert.deepEqual(fade.background, { type: 'linearGradient', angle: '0deg', startColor: '#0D5B44', centerColor: '#0D5B44CC', centerPosition: '50%', endColor: '#0D5B4400' });
   for (const layer of [fade, content]) assert.equal(layer.position, 'absolute');
   assert.ok(JSON.stringify(content).includes('hospital-logo.png'));
   const body = JSON.stringify(card.contents.body);

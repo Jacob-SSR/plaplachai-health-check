@@ -127,49 +127,49 @@ function flexHeader(n: Notice, color: string, logoUrl?: string, photoUrl?: strin
       ...(logoUrl ? [{ type: 'box', layout: 'vertical', width: '28px', height: '28px', cornerRadius: '14px', backgroundColor: '#FFFFFF', flex: 0,
         contents: [{ type: 'image', url: logoUrl, size: 'full', aspectMode: 'cover', aspectRatio: '1:1' }] }] : []),
       { type: 'text', text: HOSPITAL_NAME, color: '#FFFFFF', size: 'xs', weight: 'bold', gravity: 'center' }] },
-    { type: 'text', text: noticeTitle(n), color: '#FFFFFF', size: 'xl', weight: 'bold', wrap: true }] };
-  if (!photoUrl) return { type: 'box', layout: 'vertical', backgroundColor: color, paddingAll: '18px', paddingTop: '20px', contents: [content] };
+    { type: 'text', text: noticeTitle(n), color: '#FFFFFF', size: 'lg', weight: 'bold', wrap: true }] };
+  if (!photoUrl) return { type: 'box', layout: 'vertical', backgroundColor: color, paddingAll: '16px', contents: [content] };
   return { type: 'box', layout: 'vertical', paddingAll: '0px', contents: [
-    { type: 'image', url: photoUrl, size: 'full', aspectMode: 'cover', aspectRatio: '20:13' },
+    { type: 'image', url: photoUrl, size: 'full', aspectMode: 'cover', aspectRatio: '2:1' },
     { type: 'box', layout: 'vertical', ...FILL, offsetTop: '0px', offsetBottom: '0px', contents: [],
-      background: { type: 'linearGradient', angle: '0deg', startColor: color, centerColor: `${color}CC`, centerPosition: '45%', endColor: `${color}00` } },
-    { type: 'box', layout: 'vertical', ...FILL, offsetBottom: '0px', paddingStart: '18px', paddingEnd: '18px', paddingBottom: '16px', contents: [content] }] };
+      background: { type: 'linearGradient', angle: '0deg', startColor: color, centerColor: `${color}CC`, centerPosition: '50%', endColor: `${color}00` } },
+    { type: 'box', layout: 'vertical', ...FILL, offsetBottom: '0px', paddingStart: '16px', paddingEnd: '16px', paddingBottom: '12px', contents: [content] }] };
 }
 
 // Our own LINE Flex bubble (LINE Developers Flex Message spec). logoUrl and photoUrl must be public HTTPS.
-// The date and time come first in a tinted box with a date tile; other details follow as label/value rows.
+// Kept short for a phone screen: date and time first in a tinted box, details as compact label/value rows,
+// what to bring on one line, preparation steps only when there are any, notes in one footer line.
 export function noticeFlex(n: Notice, logoUrl?: string, photoUrl?: string) {
   const color = NOTICE_COLORS[n.kind], steps = noticePreparation(n);
   const strike = n.kind === 'CANCELLED' ? { decoration: 'line-through' } : {};
-  const when = { type: 'box', layout: 'horizontal', spacing: 'md', margin: 'lg', backgroundColor: NOTICE_TINTS[n.kind], cornerRadius: '12px', paddingAll: '12px', alignItems: 'center', contents: [
-    { type: 'box', layout: 'vertical', width: '56px', flex: 0, backgroundColor: color, cornerRadius: '10px', paddingTop: '6px', paddingBottom: '6px', contents: [
-      { type: 'text', text: datePart(n.date, { day: 'numeric' }), size: 'xxl', weight: 'bold', color: '#FFFFFF', align: 'center' },
+  const when = { type: 'box', layout: 'horizontal', spacing: 'md', margin: 'md', backgroundColor: NOTICE_TINTS[n.kind], cornerRadius: '10px', paddingAll: '10px', alignItems: 'center', contents: [
+    { type: 'box', layout: 'vertical', width: '48px', flex: 0, backgroundColor: color, cornerRadius: '8px', paddingTop: '4px', paddingBottom: '4px', contents: [
+      { type: 'text', text: datePart(n.date, { day: 'numeric' }), size: 'xl', weight: 'bold', color: '#FFFFFF', align: 'center' },
       { type: 'text', text: datePart(n.date, { month: 'short', year: '2-digit' }), size: 'xxs', color: '#FFFFFF', align: 'center' }] },
-    { type: 'box', layout: 'vertical', spacing: 'xs', contents: [
+    { type: 'box', layout: 'vertical', contents: [
       { type: 'text', text: thaiLongDate(n.date), size: 'sm', weight: 'bold', color: '#111827', wrap: true, ...strike },
-      { type: 'text', text: n.time ? `${n.time.slice(0, 5)} น.` : 'โปรดติดต่อเจ้าหน้าที่เพื่อยืนยันเวลา', size: n.time ? 'lg' : 'sm', weight: 'bold', color, wrap: true, ...strike }] }] };
+      { type: 'text', text: n.time ? `${n.time.slice(0, 5)} น.` : 'โปรดติดต่อเจ้าหน้าที่เพื่อยืนยันเวลา', size: n.time ? 'lg' : 'xs', weight: 'bold', color, wrap: true, ...strike }] }] };
   // noticeRows starts with the date and time, which the box above already shows.
-  const details = noticeRows(n).slice(2).flatMap(([, label, value], i) => [
-    ...(i ? [{ type: 'separator', color: '#EEF0F2' }] : []),
-    { type: 'box', layout: 'horizontal', spacing: 'md', paddingTop: '10px', paddingBottom: '10px', contents: [
-      { type: 'text', text: label, size: 'xs', color: '#6B7280', flex: 2, wrap: true },
-      { type: 'text', text: value, size: 'sm', color: '#111827', weight: 'bold', flex: 5, wrap: true }] }]);
-  const item = (text: string) => ({ type: 'text', text: `• ${text}`, size: 'sm', color: '#78350F', wrap: true });
+  const details = noticeRows(n).slice(2).map(([, label, value]) => ({ type: 'box', layout: 'horizontal', spacing: 'md', contents: [
+    { type: 'text', text: label, size: 'xs', color: '#6B7280', flex: 2, wrap: true },
+    { type: 'text', text: value, size: 'sm', color: '#111827', weight: 'bold', flex: 5, wrap: true }] }));
+  const prepare = { type: 'box', layout: 'vertical', margin: 'md', backgroundColor: '#FFF8EB', cornerRadius: '10px', paddingAll: '10px', spacing: 'xs', contents: [
+    { type: 'text', wrap: true, size: 'xs', color: '#78350F', contents: [
+      { type: 'span', text: 'สิ่งที่ต้องนำมา: ', weight: 'bold', color: '#92400E' }, { type: 'span', text: NOTICE_PREPARE.join(', ') }] },
+    ...(steps.length ? [{ type: 'text', text: 'การเตรียมตัวก่อนรับการตรวจ', weight: 'bold', size: 'xs', color: '#92400E', margin: 'sm' },
+      ...steps.map(text => ({ type: 'text', text: `• ${text}`, size: 'xs', color: '#78350F', wrap: true }))] : [])] };
   return {
     type: 'flex', altText: `${noticeTitle(n)} · ${thaiLongDate(n.date)}`,
     contents: { type: 'bubble', size: 'mega',
       header: flexHeader(n, color, logoUrl, photoUrl),
-      body: { type: 'box', layout: 'vertical', paddingAll: '20px', contents: [
+      body: { type: 'box', layout: 'vertical', paddingAll: '16px', contents: [
         { type: 'text', text: `เรียน คุณ${n.name}`, weight: 'bold', size: 'md', color: '#111827', wrap: true },
-        { type: 'text', text: noticeLead(n), size: 'sm', color: '#6B7280', wrap: true, margin: 'xs' },
+        { type: 'text', text: noticeLead(n), size: 'xs', color: '#6B7280', wrap: true },
         when,
-        { type: 'box', layout: 'vertical', margin: 'md', contents: details },
-        ...(!showsPreparation(n) ? [] : [{ type: 'box', layout: 'vertical', margin: 'md', backgroundColor: '#FFF8EB', cornerRadius: '12px', paddingAll: '14px', spacing: 'xs', contents: [
-          { type: 'text', text: 'สิ่งที่ต้องนำมา', weight: 'bold', size: 'sm', color: '#92400E' },
-          ...NOTICE_PREPARE.map(item),
-          ...(steps.length ? [{ type: 'text', text: 'การเตรียมตัวก่อนรับการตรวจ', weight: 'bold', size: 'sm', color: '#92400E', margin: 'md' }, ...steps.map(item)] : [])] }])] },
-      footer: { type: 'box', layout: 'vertical', spacing: 'xs', paddingAll: '14px', paddingStart: '20px', paddingEnd: '20px', backgroundColor: '#F7F9F8', contents:
-        noticeFooter(n).map(text => ({ type: 'text', text: `• ${text}`, size: 'xs', color: '#6B7280', wrap: true })) },
+        { type: 'box', layout: 'vertical', margin: 'md', spacing: 'sm', contents: details },
+        ...(showsPreparation(n) ? [prepare] : [])] },
+      footer: { type: 'box', layout: 'vertical', paddingAll: '10px', paddingStart: '16px', paddingEnd: '16px', backgroundColor: '#F7F9F8', contents: [
+        { type: 'text', text: noticeFooter(n).join(' · '), size: 'xxs', color: '#6B7280', wrap: true }] },
       styles: { footer: { separator: true, separatorColor: '#EEF0F2' } },
     },
   };

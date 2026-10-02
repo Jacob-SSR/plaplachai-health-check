@@ -21,10 +21,10 @@ export function NoticeCard({ notice }: { notice: Notice }) {
       <div className={`nc-when${cancelled ? ' struck' : ''}`}><span className="nc-tile"><b>{datePart(notice.date, { day: 'numeric' })}</b>{datePart(notice.date, { month: 'short', year: '2-digit' })}</span>
         <span><span className="nc-date">{thaiLongDate(notice.date)}</span><span className="nc-time">{notice.time ? `${notice.time.slice(0, 5)} น.` : 'โปรดติดต่อเจ้าหน้าที่เพื่อยืนยันเวลา'}</span></span></div>
       <dl className="nc-rows">{noticeRows(notice).slice(2).map(([, label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
-      {showsPreparation(notice) && <div className="nc-prepare"><strong>สิ่งที่ต้องนำมา</strong><ul>{NOTICE_PREPARE.map(item => <li key={item}>{item}</li>)}</ul>
+      {showsPreparation(notice) && <div className="nc-prepare"><p><strong>สิ่งที่ต้องนำมา:</strong> {NOTICE_PREPARE.join(', ')}</p>
         {steps.length > 0 && <><strong>การเตรียมตัวก่อนรับการตรวจ</strong><ul>{steps.map(item => <li key={item}>{item}</li>)}</ul></>}</div>}
     </div>
-    <ul className="nc-foot">{noticeFooter(notice).map(line => <li key={line}>{line}</li>)}</ul>
+    <p className="nc-foot">{noticeFooter(notice).join(' · ')}</p>
   </div>;
 }
 
