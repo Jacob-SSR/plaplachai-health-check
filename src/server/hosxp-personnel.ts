@@ -53,6 +53,9 @@ export async function syncDoctorPersonnel(source: DoctorPerson[]) {
       await execute(`UPDATE employees SET hosxp_doctor_code=?,hosxp_doctor_name=?,active=?,
         cid_ciphertext=?,cid_hmac=?,cid_verified_at=IF(? IS NULL,NULL,UTC_TIMESTAMP(6)) WHERE id=?`,
         [person.code, person.name, person.active, person.cid ? encrypt(person.cid) : null, hash, hash, employeeId], db);
+      // A record created before HOSxP had the CID started with notifications off (nothing to send to).
+      // When the CID first arrives, switch them on; the toggle could not be used without a CID before.
+      if (old && !old.cid_hmac && hash) await execute('UPDATE employees SET notification_enabled=1 WHERE id=?', [employeeId], db);
       seen.push(employeeId);
     }
     // Only source-managed people are deactivated; unrelated historical records remain intact.

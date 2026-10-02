@@ -58,8 +58,11 @@ export async function dispatchOne(provider:NotificationProvider=new MophAlertPro
     if(!manual&&settings.mode==='DRY_RUN') {
       await execute("UPDATE notification_jobs SET status='DRY_RUN',safe_error='No network request was made' WHERE id=?",[job.id],db);return {skipped:true};
     }
-    if(!a.notification_enabled||!a.cid_ciphertext||!a.cid_verified_at) {
-      await execute("UPDATE notification_jobs SET status='BLOCKED',safe_error='ผู้รับยังไม่เปิดแจ้งเตือนหรือยังไม่ตรวจรับ CID' WHERE id=?",[job.id],db);return {skipped:true};
+    // Say which condition failed, so staff know where to fix it.
+    const blocked=!a.cid_ciphertext?'ยังไม่มีเลขบัตรประชาชน (CID) ของบุคลากรคนนี้ใน HOSxP':!a.cid_verified_at?'ยังไม่ได้ตรวจรับเลขบัตรประชาชน (CID)'
+      :!a.notification_enabled?'ยังไม่ได้เปิดรับแจ้งเตือนของบุคลากรคนนี้ (เมนูบุคลากร → เปิดรับแจ้งเตือน)':null;
+    if(blocked) {
+      await execute("UPDATE notification_jobs SET status='BLOCKED',safe_error=? WHERE id=?",[blocked,job.id],db);return {skipped:true};
     }
     let cid:string;try{cid=decrypt(String(a.cid_ciphertext));}catch{await execute("UPDATE notification_jobs SET status='BLOCKED',safe_error='กุญแจข้อมูลผู้รับไม่พร้อม' WHERE id=?",[job.id],db);return {skipped:true};}
     if(job.hosxp_oapp_id&&!cancelNotice&&!await hosxpAppointmentStillCurrent(a)) {

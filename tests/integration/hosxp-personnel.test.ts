@@ -24,3 +24,17 @@ test('doctor sync reuses CID identity, preserves opt-out, handles departure and 
   await syncDoctorPersonnel([]);
   assert.equal((await rows<{active:number}>('SELECT active FROM employees WHERE id=?',[employeeId]))[0].active,0);
 });
+
+test('a person whose CID reaches HOSxP later gets notifications switched on; an existing opt-out stays off',async()=>{
+  const cid='1234567890130',code='doctor-late-cid-test';
+  await syncDoctorPersonnel([{code,name:'บุคลากร ไม่มีเลขบัตร',cid:null,active:'Y'}]);
+  const [before]=await rows<{id:number;notification_enabled:number}>('SELECT id,notification_enabled FROM employees WHERE hosxp_doctor_code=?',[code]);
+  assert.equal(before.notification_enabled,0,'nothing to send to without a CID');
+  await syncDoctorPersonnel([{code,name:'บุคลากร ไม่มีเลขบัตร',cid,active:'Y'}]);
+  const [after]=await rows<{notification_enabled:number;cid_verified_at:string|null}>('SELECT notification_enabled,cid_verified_at FROM employees WHERE id=?',[before.id]);
+  assert.equal(after.notification_enabled,1);assert.ok(after.cid_verified_at);
+  await execute('UPDATE employees SET notification_enabled=0 WHERE id=?',[before.id]);
+  await syncDoctorPersonnel([{code,name:'บุคลากร ไม่มีเลขบัตร',cid,active:'Y'}]);
+  assert.equal((await rows<{n:number}>('SELECT notification_enabled n FROM employees WHERE id=?',[before.id]))[0].n,0,'admin opt-out after the CID arrived is kept');
+  await syncDoctorPersonnel([]);
+});
