@@ -50,14 +50,14 @@ async function handle(req:NextRequest,{params}:{params:Promise<{path:string[]}>}
     else if(route==='exports/appointments'&&method==='GET'){allow('report.read');allow('export.execute');await syncHosxpPersonnel();const file=await hosxpReportExcel(url,actor);await transaction(db=>audit(db,actor.id,'EXPORT','hosxp_report',null,{from:url.get('from'),to:url.get('to')}));return download(file,'hosxp-appointments.xlsx');}
     else if(route==='notification-settings'&&method==='GET'){allow('notification.manage');result=await notificationSettings();}
     else if(route==='notification-settings'&&method==='PATCH'){
-      allow('notification.manage');const input=z.object({enabled:z.boolean(),mode:z.enum(['DRY_RUN','LIVE']),version:id,days:z.array(z.number().int().min(0).max(30)).max(10),confirmLive:z.boolean().default(false)}).parse(await jsonBody(req));
+      allow('notification.manage');const input=z.object({enabled:z.boolean(),mode:z.enum(['DRY_RUN','LIVE']),version:id,days:z.array(z.number().int().min(0).max(30)).max(10),confirmLive:z.boolean().default(false),showBrand:z.boolean().default(true)}).parse(await jsonBody(req));
       if(input.enabled&&input.mode==='LIVE')ensure(input.confirmLive&&process.env.MOPH_LIVE_ENABLED==='true'&&process.env.MOPH_CLIENT_KEY&&process.env.MOPH_SECRET_KEY,'ต้องยืนยันเปิดส่งจริงและตั้งค่าฝั่ง server ครบก่อน');
       result=await transaction(async db=>{
-        const r=await execute('UPDATE notification_settings SET enabled=?,mode=?,version=version+1 WHERE id=1 AND version=?',[input.enabled,input.mode,input.version],db);ensure(r.affectedRows,'ข้อมูลเปลี่ยนแล้ว กรุณาโหลดใหม่',409);
+        const r=await execute('UPDATE notification_settings SET enabled=?,mode=?,show_brand=?,version=version+1 WHERE id=1 AND version=?',[input.enabled,input.mode,input.showBrand,input.version],db);ensure(r.affectedRows,'ข้อมูลเปลี่ยนแล้ว กรุณาโหลดใหม่',409);
         await execute('UPDATE notification_rules SET active=0',[],db);
         for(const day of new Set(input.days))await execute('INSERT INTO notification_rules(days_before,active) VALUES(?,1) ON DUPLICATE KEY UPDATE active=1',[day],db);
         await execute("UPDATE notification_jobs j JOIN notification_rules r ON r.id=j.rule_id SET j.status='CANCELLED',j.safe_error='RULE_DISABLED' WHERE r.active=0 AND j.status='PENDING'",[],db);
-        await audit(db,actor.id,'SETTINGS','notification_settings',1,{enabled:input.enabled,mode:input.mode,days:input.days});return {ok:true};
+        await audit(db,actor.id,'SETTINGS','notification_settings',1,{enabled:input.enabled,mode:input.mode,days:input.days,showBrand:input.showBrand});return {ok:true};
       });
     }
     else if(route==='notifications'&&method==='GET'){

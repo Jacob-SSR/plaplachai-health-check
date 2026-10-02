@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { labGroups, noticeFlex, noticeMessage, noticeText, type Notice } from '../src/domain/notice';
+import { labGroups, noticeFlex, noticeTitle, noticeMessage, noticeText, type Notice } from '../src/domain/notice';
 import { MophAlertProvider, mophRequest } from '../src/providers/moph-alert';
 
 const notice: Notice = { kind: 'NEW', name: 'บุคลากรสมมติ', date: '2027-01-29', time: '08:31:00', service: 'แพทย์แผนไทย', location: 'ห้องบัตร' };
@@ -101,8 +101,8 @@ test('flex card: photo header fading into the notice colour, date box first, pla
   const n: Notice = { kind: 'NEW', name: 'ทดสอบ', date: '2027-01-29', time: '09:00:00', service: 'ทันตกรรม', location: 'ห้องบัตร' };
   const card = noticeFlex(n, 'https://example.test/hospital-logo.png', 'https://example.test/hospital-header.jpg') as { contents: { header: { contents: Record<string, unknown>[] }; body: { contents: Record<string, unknown>[] } } };
   const [photo, fade, content] = card.contents.header.contents;
-  assert.deepEqual([photo.type, photo.url, photo.aspectMode, photo.aspectRatio], ['image', 'https://example.test/hospital-header.jpg', 'cover', '20:13']);
-  assert.deepEqual(fade.background, { type: 'linearGradient', angle: '0deg', startColor: '#0D5B44', centerColor: '#0D5B44CC', centerPosition: '45%', endColor: '#0D5B4400' });
+  assert.deepEqual([photo.type, photo.url, photo.aspectMode, photo.aspectRatio], ['image', 'https://example.test/hospital-header.jpg', 'cover', '2:1']);
+  assert.deepEqual(fade.background, { type: 'linearGradient', angle: '0deg', startColor: '#0D5B44', centerColor: '#0D5B44CC', centerPosition: '50%', endColor: '#0D5B4400' });
   for (const layer of [fade, content]) assert.equal(layer.position, 'absolute');
   assert.ok(JSON.stringify(content).includes('hospital-logo.png'));
   const body = JSON.stringify(card.contents.body);
@@ -122,4 +122,13 @@ test('flex card: photo header fading into the notice colour, date box first, pla
     Object.assign(process.env, { APP_ORIGIN: 'http://192.168.1.5:5600' });
     assert.equal(publicHeaderUrl(), undefined, 'LINE cannot load a LAN or http address');
   } finally { process.env = saved; }
+});
+
+test('show_brand off hides the logo and hospital name row on the card header, title stays', () => {
+  const n: Notice = { kind: 'NEW', name: 'ทดสอบ', date: '2027-01-29', time: '09:00:00', service: 'ทันตกรรม', location: 'ห้องบัตร' };
+  const shown = JSON.stringify((noticeFlex(n, 'https://example.test/hospital-logo.png', 'https://example.test/hospital-header.jpg') as { contents: { header: unknown } }).contents.header);
+  const hidden = JSON.stringify((noticeFlex({ ...n, showBrand: false }, 'https://example.test/hospital-logo.png', 'https://example.test/hospital-header.jpg') as { contents: { header: unknown } }).contents.header);
+  assert.ok(shown.includes('hospital-logo.png') && shown.includes('"text":"โรงพยาบาลพลับพลาชัย"'));
+  assert.ok(!hidden.includes('hospital-logo.png') && !hidden.includes('"text":"โรงพยาบาลพลับพลาชัย"'));
+  assert.ok(hidden.includes('hospital-header.jpg') && hidden.includes(noticeTitle(n)));
 });
